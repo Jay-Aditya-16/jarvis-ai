@@ -1,0 +1,8 @@
+node_modules/
+.env
+.jarvis-history.json
+.jarvis-rag/
+benchmark/results.json
+benchmark/benchmark_dashboard.png
+*.log
+.DS_Store
