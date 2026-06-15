@@ -10,6 +10,8 @@ export const KEYS = [
   process.env.OR_KEY_5,
 ].filter(Boolean);
 
+const ollamaClient = new OpenAI({ baseURL: "http://127.0.0.1:11434/v1", apiKey: "ollama" });
+
 if (!KEYS.length) {
   console.error("No API keys found. Add OR_KEY_1…OR_KEY_5 to .env");
   process.exit(1);
@@ -30,6 +32,10 @@ export function getClient() {
   const idx = keyIndex % KEYS.length;
   keyIndex++;
   return new OpenAI({ baseURL: "https://openrouter.ai/api/v1", apiKey: KEYS[idx] });
+}
+
+export function getClientForModel(model) {
+  return model.local ? ollamaClient : getClient();
 }
 
 export function markKeyExhausted() {
@@ -55,6 +61,8 @@ export const MODEL_CHAIN = [
   { id: "qwen/qwen3-coder:free",                  name: "Qwen3 Coder",      emoji: "🐉", role: "coding"    },
   { id: "deepseek/deepseek-v4-flash:free",        name: "DeepSeek Flash",   emoji: "⚡", role: "fast"      },
   { id: "meta-llama/llama-3.3-70b-instruct:free", name: "Llama 3.3 70B",   emoji: "🦙", role: "general"   },
+  { id: "qwen2.5:3b",   name: "Qwen2.5 3B (local)",  emoji: "🏠", role: "local", local: true },
+  { id: "llama3.2:3b",  name: "Llama3.2 3B (local)",  emoji: "🏠", role: "local", local: true },
 ];
 
 // ── Routing ────────────────────────────────────────────────────────────────────

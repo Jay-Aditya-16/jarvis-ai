@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis</title>
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --surface: #161616;
+    --border: #2a2a2a;
+    --accent: #00e5ff;
+    --accent2: #7c3aed;
+    --text: #e8e8e8;
+    --muted: #666;
+    --user-bg: #1a1a2e;
+    --ai-bg: #0f1a0f;
+    --status: #1e2a1e;
+    --code-bg: #111;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 15px; }
+
+  #app { display: flex; flex-direction: column; height: 100vh; max-width: 860px; margin: 0 auto; }
+
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px; border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.1rem; color: var(--accent); letter-spacing: 2px; }
+  .logo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(1.3)} }
+  #status-badge {
+    font-size: 12px; padding: 4px 10px; border-radius: 20px;
+    border: 1px solid var(--border); color: var(--muted);
+    transition: all .3s;
+  }
+  #status-badge.connected { border-color: #22c55e; color: #22c55e; }
+  #status-badge.error { border-color: #ef4444; color: #ef4444; }
+
+  #messages {
+    flex: 1; overflow-y: auto; padding: 20px;
+    display: flex; flex-direction: column; gap: 16px;
+    scroll-behavior: smooth;
+  }
+  #messages::-webkit-scrollbar { width: 6px; }
+  #messages::-webkit-scrollbar-track { background: transparent; }
+  #messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .msg { display: flex; flex-direction: column; gap: 4px; max-width: 100%; }
+  .msg.user { align-items: flex-end; }
+  .msg.ai { align-items: flex-start; }
+
+  .bubble {
+    padding: 12px 16px; border-radius: var(--radius);
+    line-height: 1.65; max-width: 78%; white-space: pre-wrap; word-break: break-word;
+  }
+  .msg.user .bubble { background: var(--user-bg); border: 1px solid #2a2a5a; border-bottom-right-radius: 3px; }
+  .msg.ai .bubble { background: var(--ai-bg); border: 1px solid #1a3a1a; border-bottom-left-radius: 3px; }
+
+  .meta { font-size: 11px; color: var(--muted); padding: 0 4px; }
+
+  .status-line {
+    font-size: 12px; color: var(--accent); background: var(--status);
+    border: 1px solid #1a3a1a; border-radius: 6px; padding: 6px 12px;
+    font-family: monospace; align-self: flex-start;
+  }
+
+  /* Markdown-like rendering */
+  .bubble code { background: var(--code-bg); padding: 2px 5px; border-radius: 4px; font-family: 'Fira Code', monospace; font-size: 13px; color: #7dd3fc; }
+  .bubble pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow-x: auto; margin: 8px 0; }
+  .bubble pre code { background: none; padding: 0; color: #e2e8f0; font-size: 13px; }
+  .bubble strong { color: #fff; }
+  .bubble em { color: #a78bfa; }
+  .bubble h1,.bubble h2,.bubble h3 { margin: 10px 0 6px; color: var(--accent); }
+  .bubble ul,.bubble ol { padding-left: 20px; margin: 6px 0; }
+  .bubble li { margin: 2px 0; }
+  .bubble a { color: var(--accent); }
+  .bubble hr { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+  .bubble blockquote { border-left: 3px solid var(--accent2); padding-left: 12px; color: var(--muted); margin: 6px 0; }
+
+  .typing-cursor::after { content: '▌'; animation: blink .6s infinite; color: var(--accent); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  #input-area {
+    border-top: 1px solid var(--border); background: var(--surface);
+    padding: 16px 20px; display: flex; gap: 10px; align-items: flex-end;
+  }
+  #input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); padding: 12px 16px; font-size: 15px; resize: none;
+    font-family: inherit; line-height: 1.5; max-height: 140px; min-height: 48px;
+    transition: border-color .2s; outline: none;
+  }
+  #input:focus { border-color: var(--accent); }
+  #input::placeholder { color: var(--muted); }
+  #send {
+    background: var(--accent); color: #000; border: none; border-radius: var(--radius);
+    width: 46px; height: 46px; cursor: pointer; font-size: 18px; font-weight: bold;
+    transition: all .2s; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  }
+  #send:hover { background: #00b8d4; transform: scale(1.05); }
+  #send:disabled { background: var(--border); color: var(--muted); cursor: default; transform: none; }
+
+  .hint { text-align: center; color: var(--muted); font-size: 12px; padding: 8px 0 0; }
+
+  #model-bar {
+    display: flex; gap: 8px; padding: 8px 20px;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    overflow-x: auto; font-size: 11px;
+  }
+  .model-chip {
+    padding: 3px 9px; border-radius: 20px; border: 1px solid var(--border);
+    color: var(--muted); white-space: nowrap; cursor: default;
+  }
+  .model-chip.active { border-color: var(--accent); color: var(--accent); }
+
+  #clear-btn {
+    background: none; border: 1px solid var(--border); color: var(--muted);
+    border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 11px;
+    transition: all .2s;
+  }
+  #clear-btn:hover { border-color: #ef4444; color: #ef4444; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="logo">
+      <div class="logo-dot"></div>
+      JARVIS
+    </div>
+    <span id="status-badge">connecting…</span>
+  </header>
+
+  <div id="model-bar">
+    <span class="model-chip" data-role="reasoning">🔥 GPT-OSS 120B</span>
+    <span class="model-chip" data-role="reasoning">🧠 Nemotron Super</span>
+    <span class="model-chip" data-role="coding">💻 Laguna M.1</span>
+    <span class="model-chip" data-role="thinking">💭 Trinity Thinking</span>
+    <span class="model-chip" data-role="general">✨ Gemma 4 31B</span>
+    <span class="model-chip" data-role="coding">🐉 Qwen3 Coder</span>
+    <span class="model-chip" data-role="fast">⚡ DeepSeek Flash</span>
+    <span class="model-chip" data-role="general">🦙 Llama 3.3 70B</span>
+    <button id="clear-btn" style="margin-left:auto">clear history</button>
+  </div>
+
+  <div id="messages">
+    <div class="msg ai">
+      <div class="bubble">Hey. I'm Jarvis — your terminal AI agent.<br><br>
+      I route your prompt to the best free model automatically:<br>
+      • <strong>Coding</strong> → Laguna M.1 / Qwen3 Coder<br>
+      • <strong>Reasoning</strong> → GPT-OSS 120B / Nemotron<br>
+      • <strong>Math/logic</strong> → Trinity Thinking<br>
+      • <strong>General</strong> → Gemma 4 / Llama 3.3<br><br>
+      Web search auto-triggers on "search / find / latest". Ask anything.</div>
+      <div class="meta">Jarvis</div>
+    </div>
+  </div>
+
+  <div id="input-area">
+    <textarea id="input" placeholder="Ask anything… (Enter to send, Shift+Enter for newline)" rows="1"></textarea>
+    <button id="send">↑</button>
+  </div>
+  <div class="hint">Connected via WebSocket · Models via OpenRouter (free tier)</div>
+</div>
+
+<script>
+const WS_URL = `ws://${location.host}/ws`;
+const messages = document.getElementById('messages');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const badge = document.getElementById('status-badge');
+
+let ws, currentBubble = null, currentMsgDiv = null, busy = false;
+
+function connect() {
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    badge.textContent = 'connected';
+    badge.className = 'connected';
+  };
+
+  ws.onclose = () => {
+    badge.textContent = 'disconnected — reconnecting…';
+    badge.className = 'error';
+    setTimeout(connect, 2000);
+  };
+
+  ws.onerror = () => {
+    badge.textContent = 'error';
+    badge.className = 'error';
+  };
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+
+    if (msg.type === 'status') {
+      const el = document.createElement('div');
+      el.className = 'status-line';
+      el.textContent = msg.content;
+      messages.appendChild(el);
+      scrollBottom();
+      return;
+    }
+
+    if (msg.type === 'start') {
+      highlightModel(msg.model);
+      currentMsgDiv = document.createElement('div');
+      currentMsgDiv.className = 'msg ai';
+      currentBubble = document.createElement('div');
+      currentBubble.className = 'bubble typing-cursor';
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = msg.model;
+      currentMsgDiv.appendChild(currentBubble);
+      currentMsgDiv.appendChild(meta);
+      messages.appendChild(currentMsgDiv);
+      scrollBottom();
+      return;
+    }
+
+    if (msg.type === 'chunk' && currentBubble) {
+      currentBubble.textContent += msg.content;
+      scrollBottom();
+      return;
+    }
+
+    if (msg.type === 'done' && currentBubble) {
+      currentBubble.innerHTML = renderMarkdown(currentBubble.textContent);
+      currentBubble.classList.remove('typing-cursor');
+      currentBubble = null;
+      currentMsgDiv = null;
+      setIdle();
+      return;
+    }
+
+    if (msg.type === 'error') {
+      addMsg('ai', `⚠️ ${msg.content}`);
+      setIdle();
+    }
+  };
+}
+
+function renderMarkdown(text) {
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/```(\w*)\n([\s\S]*?)```/g, (_,lang,code) => `<pre><code class="lang-${lang}">${code.trimEnd()}</code></pre>`)
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    .replace(/^---$/gm, '<hr>')
+    .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>[\s\S]*?<\/li>)/g, '<ul>$1</ul>')
+    .replace(/\n{2,}/g, '<br><br>')
+    .replace(/\n/g, '<br>');
+}
+
+function addMsg(role, text) {
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.innerHTML = role === 'ai' ? renderMarkdown(text) : escapeHtml(text);
+  div.appendChild(bubble);
+  messages.appendChild(div);
+  scrollBottom();
+}
+
+function escapeHtml(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function scrollBottom() { messages.scrollTop = messages.scrollHeight; }
+
+function setBusy() {
+  busy = true;
+  sendBtn.disabled = true;
+  input.disabled = true;
+}
+
+function setIdle() {
+  busy = false;
+  sendBtn.disabled = false;
+  input.disabled = false;
+  input.focus();
+}
+
+function highlightModel(name) {
+  document.querySelectorAll('.model-chip').forEach(c => {
+    c.classList.toggle('active', c.textContent.includes(name.split(' ')[0]));
+  });
+}
+
+function send() {
+  const text = input.value.trim();
+  if (!text || busy || ws.readyState !== 1) return;
+  addMsg('user', text);
+  input.value = '';
+  input.style.height = 'auto';
+  setBusy();
+  ws.send(JSON.stringify({ type: 'chat', message: text }));
+}
+
+sendBtn.addEventListener('click', send);
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+});
+input.addEventListener('input', () => {
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 140) + 'px';
+});
+
+document.getElementById('clear-btn').addEventListener('click', async () => {
+  await fetch('/api/memory', { method: 'DELETE' });
+  messages.innerHTML = '';
+  addMsg('ai', 'History cleared.');
+});
+
+connect();
+</script>
+</body>
+</html>
