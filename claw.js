@@ -30,7 +30,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "bash",
-      description: "Execute any shell command on the user's Mac. Use this for EVERYTHING that requires running code, installing packages, git, npm, building, deploying, file operations. NEVER show a command to the user — always call this tool instead.",
+      description: "Execute any shell command on the user's Mac. Use for EVERYTHING: running code, installs, git, npm, builds, deploys, file ops. ALWAYS call this — never write a command for the user to run.",
       parameters: {
         type: "object",
         properties: {
@@ -45,10 +45,10 @@ const TOOLS = [
     type: "function",
     function: {
       name: "read_file",
-      description: "Read the full contents of a file. Use before editing to understand current state.",
+      description: "Read the full contents of a file.",
       parameters: {
         type: "object",
-        properties: { path: { type: "string", description: "Absolute or relative file path" } },
+        properties: { path: { type: "string" } },
         required: ["path"]
       }
     }
@@ -61,7 +61,7 @@ const TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          path:    { type: "string", description: "File path to write" },
+          path:    { type: "string" },
           content: { type: "string", description: "Full file content" }
         },
         required: ["path", "content"]
@@ -72,10 +72,10 @@ const TOOLS = [
     type: "function",
     function: {
       name: "list_dir",
-      description: "List contents of a directory to understand project structure.",
+      description: "List contents of a directory.",
       parameters: {
         type: "object",
-        properties: { path: { type: "string", description: "Directory path (default: current dir)" } },
+        properties: { path: { type: "string", description: "Directory path (default: .)" } },
         required: ["path"]
       }
     }
@@ -91,28 +91,34 @@ const TOOLS = [
         required: ["query"]
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "finish",
+      description: "Call this ONLY when the task is fully complete or the question is purely conversational (no action needed). Pass your final response as 'result'.",
+      parameters: {
+        type: "object",
+        properties: { result: { type: "string", description: "Final response to show the user" } },
+        required: ["result"]
+      }
+    }
   }
 ];
 
 // ── System prompt ─────────────────────────────────────────────────────────────
-const SYSTEM = `You are Jarvis, a fully autonomous AI coding agent — identical to Claude Code.
-You have complete access to the user's Mac: filesystem, terminal, internet.
+const SYSTEM = `You are Jarvis, a fully autonomous AI agent with complete access to the user's Mac.
 
-YOUR ABSOLUTE RULES:
-1. NEVER write commands for the user to run. ALWAYS call the bash tool yourself.
-2. NEVER say "you can run..." or "try running..." — just run it.
-3. Chain tools until the task is 100% complete. Don't stop halfway.
-4. Read files before editing them. Write complete file contents, never partial.
-5. After bash commands, read output and continue automatically.
-6. For errors: diagnose → fix → re-run. Don't ask the user to fix things.
+MANDATORY RULES — no exceptions:
+1. You MUST always call a tool. Never output plain text with instructions.
+2. For ANY action (run code, install packages, read/write files, search web) → call the tool.
+3. When done or for pure Q&A → call finish() with your response.
+4. NEVER say "you can run X" or "try X" — call bash() and run it yourself.
+5. Chain tools until the task is 100% done. Don't stop halfway.
+6. Read files before editing. Write complete file contents, never partial.
+7. For errors: diagnose → fix → re-run. Never ask the user to fix things.
 
-WORKFLOW for any task:
-- Explore first (list_dir, read_file) if you need context
-- Execute (bash for installs/builds/git/deploys)
-- Verify (bash to test, check output)
-- Report what was done — concisely
-
-You are an agent, not a chatbot. Take action.`;
+FLOW: list_dir/read_file to explore → bash to execute → bash to verify → finish() to report.`;
 
 // ── Tool executor ─────────────────────────────────────────────────────────────
 async function execTool(name, args) {
@@ -200,10 +206,10 @@ async function callModel(messages, preferredModel) {
           max_tokens:  8192,
           temperature: 0.3,
         };
-        // Pass tools to cloud models only
+        // Pass tools to cloud models only; require tool use so model can't output plain-text instructions
         if (!model.local) {
           params.tools       = TOOLS;
-          params.tool_choice = "auto";
+          params.tool_choice = "required";
         }
         const resp = await client.chat.completions.create(params);
         return { message: resp.choices[0].message, model };
@@ -287,37 +293,43 @@ async function agent(userInput) {
     catch (e) { process.stdout.write(chalk.red(`  ✗ ${e.message}\n`)); break; }
 
     const { message, model } = result;
-    if (!savedReply) savedReply = message.content || "";
 
     // ── Function calling path ──────────────────────────────────────────────────
     if (message.tool_calls?.length) {
-      // Print any text that came with the tool calls
-      if (message.content?.trim()) {
-        process.stdout.write(chalk.white(message.content.trim()) + "\n");
-      }
       messages.push(message);
+      let done = false;
 
       for (const tc of message.tool_calls) {
         let args = {};
         try { args = JSON.parse(tc.function.arguments); } catch {}
+
+        // finish() = task complete, display result and stop
+        if (tc.function.name === "finish") {
+          const reply = args.result || "Done.";
+          await streamDisplay(reply);
+          process.stdout.write("\n");
+          savedReply = reply;
+          done = true;
+          // still need to send a tool result so the message is valid
+          messages.push({ role: "tool", tool_call_id: tc.id, content: "displayed" });
+          break;
+        }
+
         const out = await execTool(tc.function.name, args);
+        if (!savedReply) savedReply = message.content || "";
         messages.push({ role: "tool", tool_call_id: tc.id, content: String(out) });
       }
+
+      if (done) break;
       continue;
     }
 
-    // ── Text response path ─────────────────────────────────────────────────────
+    // ── Text response path (fallback for models that ignore tool_choice: required) ──
     const text = message.content || "";
-
-    // Check for XML/code-block fallback tools
     const fallbackTools = parseXMLTools(text);
-    if (fallbackTools.length) {
-      const cleanText = text
-        .replace(/<(bash|read_file|write_file|list_dir|web_search)[^>]*>[\s\S]*?<\/\1>/g, "")
-        .replace(/```(?:bash|sh|shell|zsh)\n[\s\S]*?```/g, "")
-        .trim();
-      if (cleanText) process.stdout.write(chalk.white(cleanText) + "\n");
 
+    if (fallbackTools.length) {
+      // Execute the extracted tools but don't print the surrounding instructional text
       messages.push({ role: "assistant", content: text });
       const results = [];
       for (const t of fallbackTools) {
@@ -328,9 +340,10 @@ async function agent(userInput) {
       continue;
     }
 
-    // Pure text — final answer, stream it
+    // Pure text with no tools — show it and stop
     await streamDisplay(text);
     process.stdout.write("\n");
+    savedReply = text;
     messages.push({ role: "assistant", content: text });
     break;
   }
