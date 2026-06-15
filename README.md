@@ -1,6 +1,6 @@
-# JARVIS — Terminal AI Agent
+# JARVIS AI — Terminal Agent
 
-A Claude Code-style terminal AI agent powered by free OpenRouter models. Multi-model routing, RAG knowledge base, auto web search, 28+ skills, and built-in security scanning.
+Free, local Claude Code alternative. Runs commands itself, writes files, searches the web, chains tools until done. 8 free cloud models + 2 local Ollama fallbacks + OpenClaw for full Mac control.
 
 ```
      _____                  ________    ________     ____   ____.___ _________
@@ -11,192 +11,187 @@ A Claude Code-style terminal AI agent powered by free OpenRouter models. Multi-m
           \/     \/                                               \/        \/
 ```
 
-## Features
+---
 
-- **8 free models** with automatic fallback chain (GPT-OSS 120B → Nemotron → Laguna M.1 → ...)
-- **Smart routing** — coding prompts go to coding models, math to thinking models, automatically
-- **28+ skills** from Anthropic and Vercel, auto-injected based on keywords
-- **Local RAG** — index your own files, Jarvis answers from your actual docs
-- **Live web search + scraping** via Firecrawl — auto-triggers on "search / find / latest / what is"
-- **Skill Sentinel** — every third-party skill is security-scanned before install (10 threat categories)
-- **Persistent conversation** — history saved to disk, survives restarts
-- **CAI cybersecurity** — full kill-chain + CTF methodology built in
+## Modes
+
+| Mode | Command | What it does |
+|---|---|---|
+| **Agent** (Claude Code-style) | `node claw.js` | Executes bash, reads/writes files, searches web. Uses function calling. Chains tools until task is done. |
+| **Chat** | `node ai.js` | Conversational terminal. RAG, skills, web search. |
+| **Server** | `node server.js` | OpenAI-compatible API at `localhost:3000/v1` — powers claw, web UI, and OpenClaw. |
+| **Web UI** | `localhost:3000` | Browser chat after server starts. |
+| **OpenClaw** | `openclaw` | Full computer agent: browser, 50+ integrations, Telegram/WhatsApp. Uses Jarvis as its LLM. |
+
+---
 
 ## Quick Start
-
-### 1. Clone and install
 
 ```bash
 git clone https://github.com/Jay-Aditya-16/jarvis-ai.git
 cd jarvis-ai
 npm install
-```
-
-### 2. Set up API keys
-
-```bash
 cp .env.example .env
+# edit .env — add keys
 ```
 
-Edit `.env` and add your keys:
-
+**.env:**
 ```env
-OR_KEY_1=sk-or-v1-...   # OpenRouter key (free tier: 50 req/day each)
-OR_KEY_2=sk-or-v1-...   # Add up to 5 keys for 250 req/day total
-FIRECRAWL_KEY=fc-...    # Optional — enables web search (firecrawl.dev)
-```
-
-**Get free OpenRouter keys:** [openrouter.ai/keys](https://openrouter.ai/keys)  
-**Get free Firecrawl key:** [firecrawl.dev](https://www.firecrawl.dev) — for web search/scraping
-
-### 3. Run
-
-```bash
-npm start
-# or
-node ai.js
+OR_KEY_1=sk-or-v1-...   # openrouter.ai/keys — free, 50 req/day each
+OR_KEY_2=sk-or-v1-...   # add up to 5 for 250 req/day total
+FIRECRAWL_KEY=fc-...    # firecrawl.dev — free 500 credits/month
 ```
 
 ---
 
-## Usage
+## Agent mode (claw)
 
-Just type naturally. No commands needed for most things.
+```bash
+# Terminal 1
+node server.js
+
+# Terminal 2
+node claw.js
+```
+
+`claw` uses **OpenAI function calling** — it executes commands itself, never tells you to run them.
 
 ```
-You > fix the authentication bug in my Express app
-You > explain the tradeoffs between PostgreSQL and MongoDB
-You > search for the latest CVE affecting OpenSSH
-You > https://docs.example.com — summarize this page
+ ❯ create a fastapi server with 3 routes and run it
+ ❯ find all TODO comments in this repo and fix them
+ ❯ what's the latest stable node version, update my package.json and reinstall
+ ❯ clone github.com/user/repo and set it up
+ ❯ search for how to fix CORS in express and apply the fix to server.js
 ```
 
-### Commands
+### How it works
+
+1. Routes your prompt to the best model (coding → Qwen3/Laguna, reasoning → GPT-OSS/Nemotron)
+2. Auto-fetches web context if you mention URLs or search keywords
+3. Model calls tools via function calling → executes bash/file/search → feeds results back
+4. Loops until task complete (max 15 iterations)
+5. Falls back to XML tag parsing for models that don't support function calling
+
+### claw commands
 
 | Command | Description |
 |---|---|
-| `/search <query>` | Web search via Firecrawl |
-| `/scrape <url>` | Scrape and read a URL |
-| `/model` | Show model priority chain |
-| `/skill list` | List installed skills |
-| `/skill registry` | Browse skills.sh catalog |
-| `/skill install <name>` | Install a skill by name |
-| `/skill add <url>` | Fetch + security scan + install from GitHub |
-| `/skill scan <file>` | Scan a local skill file for threats |
-| `/rag add <file\|dir>` | Index files into local knowledge base |
-| `/rag list` | Show indexed documents |
-| `/rag search <query>` | Test retrieval without AI |
-| `/rag clear` | Wipe the index |
-| `/cai` | Cybersecurity quick-reference |
-| `/keys` | API key rotation status |
-| `/history` | Conversation stats |
-| `/clear` | Clear history (memory + disk) |
-| `/help` | Full help |
+| `/clear` | Clear conversation history |
+| `/history` | Turn count + memory path |
+| `/models` | Show full model chain |
 | `/exit` | Quit |
 
 ---
 
-## Auto-triggers (no command needed)
+## Chat mode (jarvis)
 
-**Model routing** — happens automatically:
-| Prompt type | Model selected |
+```bash
+node ai.js
+```
+
+```
+You > fix the auth bug in my Express app
+You > explain tradeoffs between PostgreSQL and MongoDB
+You > https://docs.example.com — summarize this
+```
+
+### jarvis commands
+
+| Command | Description |
 |---|---|
-| code / debug / build / fix | 💻 Laguna M.1 (coding) |
-| analyze / reason / architecture | 🧠 Nemotron Super (reasoning) |
-| math / proof / logic / step by step | 💭 Trinity Thinking |
-| everything else | 🔥 GPT-OSS 120B |
-
-**Skills** — injected into context when keywords match:
-| Keywords | Skill loaded |
-|---|---|
-| drone / uav / mavlink / px4 | `drones.md` |
-| ctf / htb / nmap / pentest / privesc | `cai-cybersecurity.md` |
-| security / exploit / xss / sqli | `security.md` |
-| react / nextjs / usestate | `vercel-react-best-practices.md` |
-| mcp / model context protocol | `anthropic-mcp-builder.md` |
-| startup / mvp / saas / arr | `startup.md` |
-| robot / ros2 / esp32 / arduino | `robotics.md` |
-| + 23 more... | |
-
-**Web** — Firecrawl fires automatically:
-- Paste any URL → page is scraped and sent as context
-- Say "search / find / latest / what is / look up" → web search runs
+| `/search <query>` | Web search via Firecrawl |
+| `/scrape <url>` | Scrape a URL |
+| `/model` | Model chain |
+| `/skill list` | Installed skills |
+| `/skill install <name>` | Install from registry |
+| `/skill add <url>` | Fetch + scan + install |
+| `/rag add <file\|dir>` | Index files for RAG |
+| `/rag list` | Show indexed docs |
+| `/keys` | Key rotation status |
+| `/clear` | Clear history |
+| `/help` | Full help |
 
 ---
 
-## RAG — Index Your Own Docs
+## Model chain
+
+| # | Model | Routing | Source |
+|---|---|---|---|
+| 1 | 🔥 GPT-OSS 120B | reasoning / default | OpenRouter free |
+| 2 | 🧠 Nemotron Super 120B | reasoning | OpenRouter free |
+| 3 | 💻 Laguna M.1 | coding | OpenRouter free |
+| 4 | 💭 Trinity Thinking | math / logic | OpenRouter free |
+| 5 | ✨ Gemma 4 31B | general | OpenRouter free |
+| 6 | 🐉 Qwen3 Coder | coding | OpenRouter free |
+| 7 | ⚡ DeepSeek V4 Flash | fast | OpenRouter free |
+| 8 | 🦙 Llama 3.3 70B | general | OpenRouter free |
+| 9 | 🏠 Qwen2.5 3B | local fallback | Ollama |
+| 10 | 🏠 Llama3.2 3B | last resort | Ollama |
+
+Auto-fallback on 429/rate-limit. Local models need [Ollama](https://ollama.ai) installed.
+
+---
+
+## Skills (28 included)
+
+Auto-injected into context when keywords match your message — no command needed.
+
+**Anthropic:** Claude API, MCP builder, frontend design, webapp testing, PDF/DOCX/PPTX/XLSX, canvas, algorithmic art, brand guidelines, skill creator
+
+**Vercel:** React, React Native, deploy to Vercel, web design, core web vitals, view transitions, composition patterns
+
+**Custom:** drones/UAV/MAVLink, cybersecurity/CTF/kill-chain, robotics/ROS2/ESP32, startup/MVP/SaaS, code quality, security/pentest
+
+### Skill Sentinel
+
+Every skill fetched via `/skill add` is security-scanned before install (10 threat categories). CRITICAL = blocked. HIGH/MEDIUM = warned, your choice.
+
+---
+
+## RAG
+
+Index your own codebase and Jarvis answers from it specifically:
 
 ```bash
-# In Jarvis:
-/rag add ./docs
 /rag add ./src
-/rag add ~/notes/research.md
-
-# Then just ask normally:
-You > how does our auth flow work
-# Jarvis retrieves relevant chunks from your files and answers specifically
+/rag add ./docs
+# Then ask normally — Jarvis retrieves relevant chunks automatically
 ```
 
-Supported file types: `.md` `.txt` `.js` `.ts` `.py` `.json` `.yaml`
-
-The embedding model (`all-MiniLM-L6-v2`, ~22MB) downloads once on first use and runs fully offline — no API key needed for RAG.
+Embedding model (`all-MiniLM-L6-v2`, ~22MB) runs fully offline.
 
 ---
 
-## Skill Sentinel
+## OpenClaw integration
 
-Every skill fetched via `/skill add` is automatically scanned before install:
+OpenClaw uses Jarvis as its LLM backend. Start the server, run `openclaw`.
 
-| Severity | Threat | Action |
-|---|---|---|
-| 🔴 CRITICAL | Prompt injection, data exfiltration, hardcoded secrets, command injection | Blocked automatically |
-| 🟡 HIGH | Obfuscation, transitive trust abuse, unauthorized tool use | Warning — you decide |
-| 🟢 MEDIUM | Autonomy abuse, over-collection, supply chain risk | Warning — you decide |
-
----
-
-## Benchmark
-
-Run the eval suite to measure routing accuracy, skill precision/recall, RAG retrieval quality, and Sentinel detection rates:
+Adds on top of Jarvis: browser control, file system access, 50+ integrations (Gmail, GitHub, Spotify, Obsidian…), Telegram/WhatsApp/iMessage access from your phone, persistent memory.
 
 ```bash
-npm run benchmark
+node server.js    # must be running
+openclaw          # full computer agent
 ```
-
-Open `benchmark/analyze.m` in MATLAB for a full visual dashboard.
 
 ---
 
-## Model Chain
-
-All models are free tier on OpenRouter. Jarvis walks this chain automatically on 429/throttle:
-
-1. 🔥 GPT-OSS 120B — default reasoning
-2. 🧠 Nemotron 3 Super 120B — reasoning fallback
-3. 💻 Poolside Laguna M.1 — coding
-4. 💭 Trinity Large Thinking — math / logic
-5. ✨ Gemma 4 31B — general
-6. 🐉 Qwen3 Coder — coding fallback
-7. ⚡ DeepSeek V4 Flash — fast
-8. 🦙 Llama 3.3 70B — final fallback
-
----
-
-## Project Structure
+## Architecture
 
 ```
-jarvis-ai/
-├── ai.js              # Main entry point + REPL
-├── core/
-│   ├── models.js      # Model chain, routing, key management
-│   ├── skills.js      # Skill triggers, detection, install, registry
-│   ├── sentinel.js    # Skill Sentinel threat scanner
-│   ├── web.js         # Firecrawl search + scrape
-│   ├── rag.js         # Local RAG (vectra + transformers)
-│   └── history.js     # Conversation memory + disk persistence
-├── skills/            # 28+ skill markdown files
-├── benchmark/         # Eval suite + MATLAB analysis
-├── .env.example       # API key template
-└── README.md
+claw.js          — agentic CLI (function calling loop, Claude Code-style)
+ai.js            — conversational CLI
+server.js        — Express + WebSocket + OpenAI-compat API at :3000
+mcp.js           — Model Context Protocol server
+core/
+  models.js      — model chain, key rotation, Ollama client
+  memory.js      — persistent conversation history
+  skills.js      — auto skill injection, Sentinel scanner, registry
+  web.js         — Firecrawl search + scraping, auto-trigger
+  rag.js         — local vector store (vectra + transformers)
+  sentinel.js    — skill security scanner (10 threat categories)
+skills/          — 28 skill markdown files
+web/             — browser chat UI
+benchmark/       — eval suite + MATLAB analysis
 ```
 
 ---
@@ -204,8 +199,10 @@ jarvis-ai/
 ## Requirements
 
 - Node.js 18+
-- 1–5 free OpenRouter API keys
-- (Optional) Firecrawl API key for web search
+- 1–5 free [OpenRouter](https://openrouter.ai/keys) keys
+- [Firecrawl](https://firecrawl.dev) key (optional, for web search)
+- [Ollama](https://ollama.ai) (optional, for local fallback models)
+- [OpenClaw](https://openclaw.ai) (optional, for full computer agent)
 
 ---
 
