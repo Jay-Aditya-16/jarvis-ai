@@ -8,6 +8,7 @@ import path       from "path";
 import chalk      from "chalk";
 import dotenv     from "dotenv";
 import { fileURLToPath } from "url";
+import { resolveWebContext } from "./core/web.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, ".env") });
@@ -191,10 +192,19 @@ function parseTools(text) {
 
 // ── Agent loop ─────────────────────────────────────────────────────────────────
 async function agent(userInput) {
+  // Auto-trigger Firecrawl on URLs or search keywords — same as ai.js
+  const spinner = { set text(v) { process.stdout.write(chalk.dim(`\n  ${v}\n`)); } };
+  const webCtx = await resolveWebContext(userInput, spinner).catch(() => "");
+  if (webCtx) process.stdout.write(chalk.dim(`  🌐 web context injected (${webCtx.length} chars)\n`));
+
+  const userContent = webCtx
+    ? `${userInput}\n\n[WEB CONTEXT]\n${webCtx}\n[END WEB CONTEXT]`
+    : userInput;
+
   const messages = [
     { role: "system",    content: SYSTEM },
     ...history.slice(-20),
-    { role: "user",      content: userInput },
+    { role: "user",      content: userContent },
   ];
 
   process.stdout.write("\n");
