@@ -6,12 +6,13 @@ import fs            from "fs/promises";
 import fsSync        from "fs";
 import path          from "path";
 import chalk         from "chalk";
+import ora           from "ora";
 import dotenv        from "dotenv";
 import { fileURLToPath } from "url";
 
 import { getClientForModel, MODEL_CHAIN, chooseModel, markKeyExhausted, KEYS } from "./core/models.js";
 import { detectSkills }                                                          from "./core/skills.js";
-import { resolveWebContext, FIRECRAWL_KEY }                                     from "./core/web.js";
+import { resolveWebContext }                                                     from "./core/web.js";
 import { loadHistory, saveHistory, clearHistory, historyStats }                 from "./core/memory.js";
 import { retrieve, formatContext }                                               from "./core/rag.js";
 
@@ -20,11 +21,59 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 
 const execAsync = promisify(exec);
 const MAX_LOOPS = 15;
-const HIST_KEY  = "claw";
 
 let history = loadHistory();
 
-// ── OpenAI function-calling tool definitions ──────────────────────────────────
+// ── ASCII art ─────────────────────────────────────────────────────────────────
+const CLAW_LOGO = [
+  "   ╲  ╲  ╲  ╲  ╲  ╲",
+  "    ╲  ╲  ╲  ╲  ╲  ╲",
+  "     ╲__╲__╲__╲__╲__╲",
+  "            ╲╱       ",
+];
+
+function printHeader(skillCount, serverStatus) {
+  const w = 62;
+  const border  = chalk.cyan("─".repeat(w));
+  const pad = (s, n) => s + " ".repeat(Math.max(0, n - stripAnsi(s).length));
+
+  const statusLine = serverStatus.online
+    ? chalk.dim(`${KEYS.length} keys · ${serverStatus.models} models · firecrawl `) +
+      (serverStatus.firecrawl ? chalk.green("on") : chalk.red("off"))
+    : chalk.yellow("⚠ server offline — web search unavailable");
+
+  const histLine = chalk.dim(historyStats(history));
+
+  console.log();
+  console.log(chalk.cyan("  ╭" + border + "╮"));
+  console.log(chalk.cyan("  │") + " ".repeat(w) + chalk.cyan("│"));
+
+  // Claw art + title block
+  const titleLines = [
+    chalk.yellow(CLAW_LOGO[0]) + "   " + chalk.white.bold("JARVIS") + chalk.dim(" × ") + chalk.cyan.bold("OPENCLAW"),
+    chalk.yellow(CLAW_LOGO[1]) + "   " + chalk.dim("autonomous terminal agent"),
+    chalk.yellow(CLAW_LOGO[2]) + "   " + chalk.dim(`${MODEL_CHAIN.length} models · ${skillCount} skills`),
+    chalk.yellow(CLAW_LOGO[3]) + "   " + statusLine,
+  ];
+
+  for (const line of titleLines) {
+    const raw = stripAnsi(line);
+    const pad = Math.max(0, w - raw.length);
+    console.log(chalk.cyan("  │ ") + line + " ".repeat(pad - 1) + chalk.cyan("│"));
+  }
+
+  console.log(chalk.cyan("  │") + " ".repeat(w) + chalk.cyan("│"));
+  console.log(chalk.cyan("  │ ") + chalk.dim("  ↑↓ history · /help · /models · /clear · /exit") + " ".repeat(13) + chalk.cyan("│"));
+  console.log(chalk.cyan("  │") + " ".repeat(w) + chalk.cyan("│"));
+  console.log(chalk.cyan("  ╰" + border + "╯"));
+  console.log();
+}
+
+function stripAnsi(str) {
+  return str.replace(/\x1B\[[0-9;]*m/g, "");
+}
+
+// ── Tools ─────────────────────────────────────────────────────────────────────
 const TOOLS = [
   {
     type: "function",
@@ -122,30 +171,33 @@ FLOW: list_dir/read_file to explore → bash to execute → bash to verify → f
 
 // ── Tool executor ─────────────────────────────────────────────────────────────
 async function execTool(name, args) {
+  const t0 = Date.now();
+  const ms = () => chalk.dim(` ${Date.now() - t0}ms`);
+
   switch (name) {
 
     case "bash": {
       const cmd = args.command?.trim();
       if (!cmd) return "ERROR: no command";
-      const desc = args.description ? chalk.dim(args.description) : chalk.dim(cmd.split("\n")[0].slice(0, 72));
-      process.stdout.write(`\n  ${chalk.yellow("⚙")}  ${desc}\n`);
+      const label = args.description || cmd.split("\n")[0].slice(0, 68);
+      process.stdout.write(`\n  ${chalk.yellow("⚙")}  ${chalk.dim(label)}\n`);
       try {
         const { stdout, stderr } = await execAsync(cmd, { timeout: 120000, cwd: process.cwd(), shell: "/bin/zsh" });
         const out = (stdout + (stderr || "")).trim();
-        process.stdout.write(`  ${chalk.green("✓")}\n`);
+        process.stdout.write(`  ${chalk.green("✓")}${ms()}\n`);
         return out || "(no output)";
       } catch (e) {
-        process.stdout.write(`  ${chalk.red("✗")}\n`);
+        process.stdout.write(`  ${chalk.red("✗")}${ms()}\n`);
         return `EXIT ${e.code ?? 1}\n${(e.stdout || "")}${(e.stderr || "")}`.trim() || e.message;
       }
     }
 
     case "read_file": {
       const fp = args.path?.trim();
-      process.stdout.write(`\n  ${chalk.blue("◎")}  ${chalk.dim(`read: ${fp}`)}\n`);
+      process.stdout.write(`\n  ${chalk.blue("◎")}  ${chalk.dim(`read  ${fp}`)}\n`);
       try {
         const data = await fs.readFile(fp, "utf8");
-        process.stdout.write(`  ${chalk.green("✓")}  ${chalk.dim(`${data.length} chars`)}\n`);
+        process.stdout.write(`  ${chalk.green("✓")}  ${chalk.dim(`${data.length} chars`)}${ms()}\n`);
         return data;
       } catch (e) { return `ERROR: ${e.message}`; }
     }
@@ -154,35 +206,35 @@ async function execTool(name, args) {
       const fp = args.path?.trim();
       const content = args.content ?? "";
       if (!fp) return "ERROR: path required";
-      process.stdout.write(`\n  ${chalk.magenta("✎")}  ${chalk.dim(`write: ${fp}`)}\n`);
+      process.stdout.write(`\n  ${chalk.magenta("✎")}  ${chalk.dim(`write ${fp}`)}\n`);
       try {
         await fs.mkdir(path.dirname(path.resolve(fp)), { recursive: true });
         await fs.writeFile(fp, content, "utf8");
-        process.stdout.write(`  ${chalk.green("✓")}\n`);
+        process.stdout.write(`  ${chalk.green("✓")}  ${chalk.dim(`${content.length} chars`)}${ms()}\n`);
         return `Written: ${fp}`;
       } catch (e) { return `ERROR: ${e.message}`; }
     }
 
     case "list_dir": {
       const dp = args.path?.trim() || ".";
-      process.stdout.write(`\n  ${chalk.blue("◎")}  ${chalk.dim(`ls: ${dp}`)}\n`);
+      process.stdout.write(`\n  ${chalk.blue("◎")}  ${chalk.dim(`ls    ${dp}`)}\n`);
       try {
         const items = await fs.readdir(dp, { withFileTypes: true });
+        process.stdout.write(`  ${chalk.green("✓")}  ${chalk.dim(`${items.length} items`)}${ms()}\n`);
         return items.map(i => `${i.isDirectory() ? "d" : "f"}  ${i.name}`).join("\n");
       } catch (e) { return `ERROR: ${e.message}`; }
     }
 
     case "web_search": {
       const q = args.query?.trim();
-      process.stdout.write(`\n  ${chalk.cyan("🌐")}  ${chalk.dim(`search: ${q}`)}\n`);
+      process.stdout.write(`\n  ${chalk.cyan("◈")}  ${chalk.dim(`web   ${q}`)}\n`);
       try {
         const res  = await fetch("http://localhost:3000/api/search", {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ query: q }),
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: q }),
         });
         const data = await res.json();
-        process.stdout.write(`  ${chalk.green("✓")}\n`);
+        process.stdout.write(`  ${chalk.green("✓")}${ms()}\n`);
         return data.result || "No results";
       } catch (e) { return `ERROR: ${e.message}`; }
     }
@@ -191,7 +243,7 @@ async function execTool(name, args) {
   }
 }
 
-// ── Call model (non-streaming for tool loop) ──────────────────────────────────
+// ── Call model ────────────────────────────────────────────────────────────────
 async function callModel(messages, preferredModel) {
   const queue = [preferredModel, ...MODEL_CHAIN.filter(m => m.id !== preferredModel.id)];
 
@@ -199,18 +251,9 @@ async function callModel(messages, preferredModel) {
     const maxAttempts = model.local ? 1 : Math.max(1, KEYS.length);
     for (let i = 0; i < maxAttempts; i++) {
       try {
-        const client  = getClientForModel(model);
-        const params  = {
-          model:       model.id,
-          messages,
-          max_tokens:  8192,
-          temperature: 0.3,
-        };
-        // Pass tools to cloud models only; require tool use so model can't output plain-text instructions
-        if (!model.local) {
-          params.tools       = TOOLS;
-          params.tool_choice = "required";
-        }
+        const client = getClientForModel(model);
+        const params = { model: model.id, messages, max_tokens: 8192, temperature: 0.3 };
+        if (!model.local) { params.tools = TOOLS; params.tool_choice = "required"; }
         const resp = await client.chat.completions.create(params);
         return { message: resp.choices[0].message, model };
       } catch (err) {
@@ -223,17 +266,16 @@ async function callModel(messages, preferredModel) {
   throw new Error("All models unavailable");
 }
 
-// ── Stream text to terminal (for final answer display) ────────────────────────
+// ── Stream display ────────────────────────────────────────────────────────────
 async function streamDisplay(text) {
-  // Simulate streaming for non-streamed responses
   const words = text.split(" ");
   for (const word of words) {
     process.stdout.write(chalk.white(word + " "));
-    await new Promise(r => setTimeout(r, 8));
+    await new Promise(r => setTimeout(r, 7));
   }
 }
 
-// ── Fallback: parse XML tool tags for models that ignore function calling ──────
+// ── XML fallback parser ───────────────────────────────────────────────────────
 function parseXMLTools(text) {
   const out = [];
   const re  = /<(bash|read_file|write_file|list_dir|web_search)((?:\s+\w+="[^"]*")*)\s*>\n?([\s\S]*?)<\/\1>/g;
@@ -244,34 +286,31 @@ function parseXMLTools(text) {
     while ((a = ar.exec(m[2])) !== null) attrs[a[1]] = a[2];
     out.push({ name: m[1], args: attrs });
   }
-  // Also parse ```bash code blocks as bash calls
   const codeRe = /```(?:bash|sh|shell|zsh)\n([\s\S]*?)```/g;
-  while ((m = codeRe.exec(text)) !== null) {
+  while ((m = codeRe.exec(text)) !== null)
     out.push({ name: "bash", args: { command: m[1].trim(), description: "from code block" } });
-  }
   return out;
 }
 
 // ── Main agent loop ───────────────────────────────────────────────────────────
-async function agent(userInput) {
-  const preferred = chooseModel(userInput);
+async function agent(userInput, activeModel) {
+  const t0       = Date.now();
+  const preferred = activeModel ?? chooseModel(userInput);
   const skills    = detectSkills(userInput);
 
-  if (skills.length) {
+  if (skills.length)
     process.stdout.write(chalk.magenta(`  ◈ skills: ${skills.map(s => s.file.replace(".md","")).join(" + ")}\n`));
-  }
 
   const skillBlock = skills.map(s => s.content).join("\n\n---\n\n");
   const sysPrompt  = skillBlock ? `${SYSTEM}\n\n=== ACTIVE SKILLS ===\n${skillBlock}` : SYSTEM;
 
-  // Parallel: web context + RAG
   const spinner = { set text(v) {} };
   const [webCtx, ragChunks] = await Promise.all([
     resolveWebContext(userInput, spinner).catch(() => ""),
     retrieve(userInput).catch(() => []),
   ]);
-  if (webCtx)            process.stdout.write(chalk.dim(`  🌐 web (${webCtx.length} chars)\n`));
-  if (ragChunks.length)  process.stdout.write(chalk.dim(`  ◈ rag: ${ragChunks.length} chunks\n`));
+  if (webCtx)           process.stdout.write(chalk.dim(`  ◈ web context (${webCtx.length} chars)\n`));
+  if (ragChunks.length) process.stdout.write(chalk.dim(`  ◈ rag: ${ragChunks.length} chunks\n`));
 
   const ragBlock = ragChunks.length ? `[RAG CONTEXT]\n${formatContext(ragChunks)}\n[END RAG CONTEXT]` : "";
   const webBlock = webCtx           ? `[WEB CONTEXT]\n${webCtx}\n[END WEB CONTEXT]`                  : "";
@@ -283,18 +322,36 @@ async function agent(userInput) {
     { role: "user",   content: userMsg },
   ];
 
-  process.stdout.write(`\n  ${chalk.dim(`${preferred.emoji} ${preferred.name}`)}\n\n`);
+  // Show which model will handle this
+  process.stdout.write(
+    `\n  ${preferred.emoji} ${chalk.cyan(preferred.name)}` +
+    chalk.dim("  thinking…") + "\n"
+  );
 
-  let loops = 0, savedReply = "";
+  let loops = 0, savedReply = "", toolCalls = 0;
+  let thinkSpinner = ora({ text: "", spinner: "dots", color: "cyan" });
 
   while (loops++ < MAX_LOOPS) {
+    thinkSpinner = ora({ prefixText: "  ", spinner: "dots2", color: "cyan" }).start();
+
     let result;
-    try { result = await callModel(messages, preferred); }
-    catch (e) { process.stdout.write(chalk.red(`  ✗ ${e.message}\n`)); break; }
+    try {
+      result = await callModel(messages, preferred);
+      thinkSpinner.stop();
+    } catch (e) {
+      thinkSpinner.stop();
+      process.stdout.write(chalk.red(`\n  ✗ ${e.message}\n`));
+      break;
+    }
 
     const { message, model } = result;
 
-    // ── Function calling path ──────────────────────────────────────────────────
+    // Show fallback model if different
+    if (model.id !== preferred.id) {
+      process.stdout.write(chalk.dim(`  ⟳ fallback → ${model.emoji} ${model.name}\n`));
+    }
+
+    // ── Function calling path ─────────────────────────────────────────────────
     if (message.tool_calls?.length) {
       messages.push(message);
       let done = false;
@@ -303,44 +360,49 @@ async function agent(userInput) {
         let args = {};
         try { args = JSON.parse(tc.function.arguments); } catch {}
 
-        // finish() = task complete, display result and stop
         if (tc.function.name === "finish") {
           const reply = args.result || "Done.";
+          process.stdout.write("\n");
           await streamDisplay(reply);
           process.stdout.write("\n");
           savedReply = reply;
           done = true;
-          // still need to send a tool result so the message is valid
           messages.push({ role: "tool", tool_call_id: tc.id, content: "displayed" });
           break;
         }
 
+        toolCalls++;
         const out = await execTool(tc.function.name, args);
         if (!savedReply) savedReply = message.content || "";
         messages.push({ role: "tool", tool_call_id: tc.id, content: String(out) });
       }
 
       if (done) break;
+
+      // Show iteration counter after each round of tool calls
+      process.stdout.write(chalk.dim(`\n  [${loops}/${MAX_LOOPS}] continuing…\n`));
       continue;
     }
 
-    // ── Text response path (fallback for models that ignore tool_choice: required) ──
+    // ── Fallback: XML / code-block path ───────────────────────────────────────
     const text = message.content || "";
     const fallbackTools = parseXMLTools(text);
 
     if (fallbackTools.length) {
-      // Execute the extracted tools but don't print the surrounding instructional text
       messages.push({ role: "assistant", content: text });
       const results = [];
       for (const t of fallbackTools) {
+        toolCalls++;
         const out = await execTool(t.name, t.args);
         results.push(`Tool: ${t.name}\nResult: ${out}`);
       }
       messages.push({ role: "user", content: results.join("\n\n") });
+      process.stdout.write(chalk.dim(`\n  [${loops}/${MAX_LOOPS}] continuing…\n`));
       continue;
     }
 
-    // Pure text with no tools — show it and stop
+    // Pure text — display and stop
+    process.stdout.write("\n");
     await streamDisplay(text);
     process.stdout.write("\n");
     savedReply = text;
@@ -348,51 +410,132 @@ async function agent(userInput) {
     break;
   }
 
-  process.stdout.write("\n");
+  const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+  process.stdout.write(
+    "\n  " +
+    chalk.dim("─".repeat(50)) + "\n  " +
+    chalk.green("✦") + chalk.dim(` done · ${toolCalls} tool call${toolCalls !== 1 ? "s" : ""} · ${elapsed}s`) +
+    "\n"
+  );
+
   history.push({ role: "user",      content: userInput });
   history.push({ role: "assistant", content: savedReply });
   saveHistory(history);
 }
 
 // ── UI ────────────────────────────────────────────────────────────────────────
+function printHelp() {
+  const row = (cmd, desc) =>
+    `  ${chalk.cyan(cmd.padEnd(14))}${chalk.dim(desc)}`;
+  console.log(
+    "\n" +
+    chalk.dim("  ── commands ──────────────────────────────────\n") +
+    row("/models",   "Show model chain and routing") + "\n" +
+    row("/clear",    "Clear conversation history") + "\n" +
+    row("/history",  "Show turn count and memory path") + "\n" +
+    row("/status",   "Check server and key status") + "\n" +
+    row("/exit",     "Quit") + "\n" +
+    chalk.dim("\n  ── tips ───────────────────────────────────────\n") +
+    `  ${chalk.dim("↑↓")}              browse input history\n` +
+    `  ${chalk.dim("Ctrl+C")}          abort current task\n` +
+    `  ${chalk.dim("node server.js")}  required for web search\n` +
+    "\n"
+  );
+}
+
+async function getServerStatus() {
+  try {
+    const s = await (await fetch("http://localhost:3000/api/status", { signal: AbortSignal.timeout(2000) })).json();
+    return { online: true, models: s.models, firecrawl: s.firecrawl };
+  } catch {
+    return { online: false };
+  }
+}
+
 async function main() {
   console.clear();
-  const skillCount = fsSync.existsSync("skills") ? fsSync.readdirSync("skills").filter(f => f.endsWith(".md")).length : 0;
-  console.log(
-    chalk.cyan("\n  ╭─────────────────────────────────────────────────────╮\n") +
-    chalk.cyan("  │ ") + chalk.white.bold(" JARVIS") + chalk.dim(" +") + chalk.cyan.bold(" OPENCLAW") +
-    chalk.dim("  agentic terminal  ") + chalk.dim(`${MODEL_CHAIN.length} models · ${skillCount} skills`) + chalk.cyan("  │\n") +
-    chalk.cyan("  ╰─────────────────────────────────────────────────────╯\n")
-  );
 
-  try {
-    const s = await (await fetch("http://localhost:3000/api/status")).json();
-    console.log(chalk.dim(`  ${KEYS.length} keys · ${s.models} models · firecrawl ${s.firecrawl ? chalk.green("on") : chalk.red("off")} · ${historyStats(history)}\n`));
-  } catch {
-    console.log(chalk.yellow("  ⚠ server offline — bash/file tools still work, web search won't\n"));
-  }
+  const skillCount   = fsSync.existsSync("skills")
+    ? fsSync.readdirSync("skills").filter(f => f.endsWith(".md")).length
+    : 0;
+  const serverStatus = await getServerStatus();
+
+  printHeader(skillCount, serverStatus);
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: true });
 
-  const prompt = () => rl.question(chalk.cyan("\n ❯ "), async (raw) => {
-    const input = raw.trim();
-    if (!input) return prompt();
+  // Track current model for prompt display
+  let currentModel = MODEL_CHAIN[0];
 
-    if (input === "/exit" || input === "/quit") { console.log(chalk.dim("  bye")); process.exit(0); }
-    if (input === "/clear") { history = []; clearHistory(); console.log(chalk.dim("  cleared")); return prompt(); }
-    if (input === "/history") { console.log(chalk.dim(`  ${historyStats(history)}`)); return prompt(); }
-    if (input === "/models") {
-      MODEL_CHAIN.forEach((m, i) => console.log(`  ${i+1}. ${m.emoji}  ${chalk.cyan(m.name.padEnd(24))} ${chalk.dim(m.id)}`));
-      return prompt();
-    }
-    if (input === "/help") {
-      console.log(chalk.dim("\n  /clear /history /models /exit — everything else: just type\n"));
-      return prompt();
-    }
+  const prompt = () => {
+    const modelTag = chalk.dim(`${currentModel.emoji} ${currentModel.name.split(" ")[0].toLowerCase()}`);
+    rl.question(chalk.cyan("\n ❯ ") + chalk.dim("") , async (raw) => {
+      const input = raw.trim();
+      if (!input) return prompt();
 
-    await agent(input);
-    prompt();
-  });
+      if (input === "/exit" || input === "/quit") {
+        console.log(chalk.dim("\n  bye\n"));
+        process.exit(0);
+      }
+
+      if (input === "/clear") {
+        history = [];
+        clearHistory();
+        console.log(chalk.dim("  ✓ history cleared"));
+        return prompt();
+      }
+
+      if (input === "/history") {
+        console.log(chalk.dim(`\n  ${historyStats(history)}\n`));
+        return prompt();
+      }
+
+      if (input === "/help") {
+        printHelp();
+        return prompt();
+      }
+
+      if (input === "/models") {
+        console.log();
+        MODEL_CHAIN.forEach((m, i) => {
+          const active = m.id === currentModel.id ? chalk.green(" ◀") : "";
+          console.log(
+            `  ${chalk.dim(String(i + 1).padStart(2))}  ${m.emoji}  ` +
+            chalk.cyan(m.name.padEnd(26)) +
+            chalk.dim(m.role.padEnd(10)) +
+            chalk.dim(m.id) +
+            active
+          );
+        });
+        console.log();
+        return prompt();
+      }
+
+      if (input === "/status") {
+        const s = await getServerStatus();
+        if (s.online) {
+          console.log(chalk.dim(`\n  server online · ${s.models} models · firecrawl ${s.firecrawl ? chalk.green("on") : chalk.red("off")} · ${historyStats(history)}\n`));
+        } else {
+          console.log(chalk.yellow("\n  server offline\n"));
+        }
+        return prompt();
+      }
+
+      // Detect explicit model override: "/use 3" or "/model qwen"
+      if (input.startsWith("/use ") || input.startsWith("/model ")) {
+        const q = input.split(" ").slice(1).join(" ");
+        const idx = parseInt(q) - 1;
+        const found = !isNaN(idx) ? MODEL_CHAIN[idx] : MODEL_CHAIN.find(m => m.name.toLowerCase().includes(q.toLowerCase()));
+        if (found) { currentModel = found; console.log(chalk.dim(`\n  model → ${found.emoji} ${found.name}\n`)); }
+        else        console.log(chalk.red(`  model not found: ${q}`));
+        return prompt();
+      }
+
+      currentModel = chooseModel(input);
+      await agent(input, currentModel);
+      prompt();
+    });
+  };
 
   prompt();
 }
