@@ -77,6 +77,8 @@ node claw.js
 | `/clear` | Clear conversation history |
 | `/history` | Turn count + memory path |
 | `/models` | Show full model chain |
+| `/route <prompt>` | Explain auto-model routing and fallback order |
+| `/local` | Show M1-safe Ollama fallback plan and installed local models |
 | `/mode` | Show or set permissions: `read-only`, `ask-before-write`, `full-agent`, `dangerous-confirm` |
 | `/project` | Startup scan: package manager, scripts, env metadata, git state, ports, verification commands |
 | `/server` | Start/check the local web/API server |
@@ -106,6 +108,8 @@ You > https://docs.example.com — summarize this
 | `/search <query>` | Web search via Firecrawl |
 | `/scrape <url>` | Scrape a URL |
 | `/model` | Model chain |
+| `/route <prompt>` | Inspect routing and fallback queue |
+| `/local` | M1-safe Ollama fallback status |
 | `/skill list` | Installed skills |
 | `/skill install <name>` | Install from registry |
 | `/skill add <url>` | Fetch + scan + install |
@@ -133,6 +137,29 @@ You > https://docs.example.com — summarize this
 | 10 | 🏠 Llama3.2 3B | last resort | Ollama |
 
 Auto-fallback on 429/rate-limit. Local models need [Ollama](https://ollama.ai) installed.
+
+### M1 Air 8GB local fallback
+
+Jarvis defaults to `JARVIS_LOCAL_PROFILE=m1-8gb` and only auto-routes to small local models that should stay reasonable on an 8GB Apple Silicon machine:
+
+```bash
+ollama pull qwen2.5:3b
+ollama pull phi3.5:latest
+ollama pull llama3.2:3b
+ollama pull gemma3n:e2b
+ollama pull gemma3:1b
+```
+
+The optional `gemma3:4b` fallback is excluded unless `JARVIS_LOCAL_INCLUDE_OPTIONAL=1` is set. Larger installed models, such as 7B/8B+ models, are not used in automatic fallback.
+
+Useful knobs:
+
+```bash
+JARVIS_PREFER_LOCAL=1
+JARVIS_LOCAL_ONLY=1
+JARVIS_KEY_ATTEMPTS=2
+JARVIS_LOCAL_MAX_MODEL_GB=3.6
+```
 
 ---
 
@@ -186,13 +213,19 @@ claw.js          — agentic CLI (function calling loop, Claude Code-style)
 ai.js            — conversational CLI
 server.js        — Express + WebSocket + OpenAI-compat API at :3000
 mcp.js           — Model Context Protocol server
+backend/
+  api-routes.js  — REST endpoints for status, memory, project, models, tasks, logs
+  openai-proxy.js — OpenAI-compatible /v1 model proxy with fallback queues
+  ws-chat.js     — browser chat WebSocket handler
 core/
   agent-log.js   — JSONL run/tool/verification logs
   browser.js     — optional Playwright browser snapshot bridge
   editing.js     — safer line-based edit primitives
   env.js         — project-root .env loading for global CLI use
+  local-ai.js    — M1/low-RAM Ollama fallback profile and installed-model checks
   mcp-loader.js  — .mcp.json metadata reader, env values redacted
   models.js      — model chain, key rotation, Ollama client
+  model-router.js — scored prompt routing and cloud/local fallback queues
   memory.js      — structured memory: history, preferences, facts, commands, secret metadata
   policy.js      — permission modes and command/tool risk classifier
   project.js     — startup project scanner and verify-command inference
@@ -207,6 +240,14 @@ skills/          — 28 skill markdown files
 web/             — browser chat UI
 benchmark/       — eval suite + MATLAB analysis
 rust-helpers/    — optional Rust helper binaries for indexing, fs watching, sandboxing
+```
+
+Run validation:
+
+```bash
+npm run benchmark
+npm run benchmark:validate
+npm run benchmark:matlab  # requires MATLAB on PATH
 ```
 
 ---

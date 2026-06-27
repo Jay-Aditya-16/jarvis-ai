@@ -5,7 +5,7 @@ import figlet       from "figlet";
 import readlineSync from "readline-sync";
 import fs           from "fs";
 
-import { KEYS, getClientForModel, markKeyExhausted, keyStatus, MODEL_CHAIN, chooseModel } from "./core/models.js";
+import { KEYS, getClientForModel, markKeyExhausted, keyStatus, MODEL_CHAIN, chooseModel, buildModelQueue, modelAttempts, routeInfo, localModelStatus } from "./core/models.js";
 import { detectSkills, fetchSkill, installNamedSkill, listSkills, scanLocalSkill, showRegistry, SKILLS_DIR, SKILL_TRIGGERS } from "./core/skills.js";
 import { resolveWebContext, webSearch, scrapeUrl, FIRECRAWL_KEY } from "./core/web.js";
 import { loadHistory, saveHistory, clearHistory, historyStats } from "./core/memory.js";
@@ -35,7 +35,7 @@ async function askAI(userInput) {
     ? `${BASE_SYSTEM}\n\n=== ACTIVE SKILLS ===\n${skillBlock}`
     : BASE_SYSTEM;
 
-  const queue   = [preferred, ...MODEL_CHAIN.filter((m) => m.id !== preferred.id)];
+  const queue   = buildModelQueue(userInput);
   const spinner = ora(`${preferred.emoji} ${preferred.name}`).start();
 
   // RAG retrieval — runs in parallel with web context
@@ -62,7 +62,7 @@ async function askAI(userInput) {
   const userMessage = [userInput, ragCtx, webBlock].filter(Boolean).join("\n\n");
 
   for (const model of queue) {
-    const attempts = model.local ? 1 : KEYS.length;
+    const attempts = modelAttempts(model);
     for (let attempt = 0; attempt < attempts; attempt++) {
       try {
         const client = getClientForModel(model);
@@ -132,10 +132,23 @@ async function handleCommand(raw) {
     case "model":
       console.log(chalk.bold("\n  Model chain (priority order):\n"));
       MODEL_CHAIN.forEach((m, i) =>
-        console.log(`  ${i + 1}. ${m.emoji}  ${chalk.cyan(m.name.padEnd(22))} ${chalk.dim(m.id)}`)
+        console.log(`  ${i + 1}. ${m.emoji}  ${chalk.cyan(m.name.padEnd(28))} ${chalk.dim(`${m.role}${m.local ? " · local" : ""} · ${m.id}`)}`)
       );
       console.log();
       break;
+
+    case "route": {
+      const prompt = args.join(" ") || "fix my backend api bug";
+      console.log(chalk.cyan(JSON.stringify(routeInfo(prompt), null, 2)));
+      console.log();
+      break;
+    }
+
+    case "local": {
+      console.log(chalk.cyan(JSON.stringify(await localModelStatus(), null, 2)));
+      console.log();
+      break;
+    }
 
     case "skill":
       if      (args[0] === "add"      && args[1]) await fetchSkill(args[1], deps);
@@ -291,6 +304,8 @@ ${chalk.bold("Commands:")}
   ${chalk.cyan("/search <query>")}         web search via Firecrawl
   ${chalk.cyan("/scrape <url>")}           scrape a URL
   ${chalk.cyan("/model")}                  show model priority chain
+  ${chalk.cyan("/route <prompt>")}         inspect model routing and fallback queue
+  ${chalk.cyan("/local")}                  show M1-safe Ollama fallback plan
   ${chalk.cyan("/skill list")}             installed skills
   ${chalk.cyan("/skill registry")}         browse skills.sh catalog
   ${chalk.cyan("/skill install <name>")}   install by short name

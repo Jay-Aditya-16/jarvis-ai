@@ -207,6 +207,7 @@
         <button class="active" data-panel="status">Status</button>
         <button data-panel="project">Project</button>
         <button data-panel="tasks">Tasks</button>
+        <button data-panel="models">Models</button>
         <button data-panel="logs">Logs</button>
         <button data-panel="world">World</button>
         <button data-panel="mcp">MCP</button>
@@ -230,6 +231,7 @@ let ws, currentBubble = null, currentMsgDiv = null, busy = false, activePanel = 
 const PANEL_ENDPOINTS = {
   status: '/api/status',
   project: '/api/project',
+  models: '/api/models',
   logs: '/api/logs?limit=40',
   world: '/api/world',
   mcp: '/api/mcp',

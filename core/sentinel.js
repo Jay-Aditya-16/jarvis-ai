@@ -66,7 +66,6 @@ const THREAT_CATEGORIES = [
     patterns: [
       /allowed.tools.*read.*(?:write|delete|execute)/i,
       /bypass.*permission/i,
-      /without.*user.*confirm/i,
     ],
   },
   {

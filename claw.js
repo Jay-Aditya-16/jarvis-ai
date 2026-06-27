@@ -9,7 +9,7 @@ import chalk         from "chalk";
 import ora           from "ora";
 import { fileURLToPath } from "url";
 
-import { getClientForModel, MODEL_CHAIN, chooseModel, markKeyExhausted, KEYS } from "./core/models.js";
+import { getClientForModel, MODEL_CHAIN, chooseModel, markKeyExhausted, KEYS, buildModelQueue, modelAttempts, routeInfo, localModelStatus } from "./core/models.js";
 import { detectSkills }                                                          from "./core/skills.js";
 import { resolveWebContext }                                                     from "./core/web.js";
 import { loadHistory, saveHistory, clearHistory, historyStats }                 from "./core/memory.js";
@@ -638,10 +638,10 @@ async function execTool(name, args) {
 
 // ── Call model ────────────────────────────────────────────────────────────────
 async function callModel(messages, preferredModel) {
-  const queue = [preferredModel, ...MODEL_CHAIN.filter(m => m.id !== preferredModel.id)];
+  const queue = buildModelQueue(messages.at(-1)?.content || "", { preferredModel });
 
   for (const model of queue) {
-    const maxAttempts = model.local ? 1 : Math.max(1, KEYS.length);
+      const maxAttempts = modelAttempts(model);
     for (let i = 0; i < maxAttempts; i++) {
       try {
         const client = getClientForModel(model);
@@ -850,6 +850,8 @@ function printHelp() {
     "\n" +
     chalk.dim("  ── commands ──────────────────────────────────\n") +
     row("/models",   "Show model chain and routing") + "\n" +
+    row("/route",    "Explain model routing for a prompt") + "\n" +
+    row("/local",    "Show M1-safe local Ollama fallback plan") + "\n" +
     row("/clear",    "Clear conversation history") + "\n" +
     row("/history",  "Show turn count and memory path") + "\n" +
     row("/status",   "Check server, mode, and key status") + "\n" +
@@ -932,12 +934,23 @@ async function main() {
         console.log(
           `  ${chalk.dim(String(i + 1).padStart(2))}  ${m.emoji}  ` +
           chalk.cyan(m.name.padEnd(26)) +
-          chalk.dim(m.role.padEnd(10)) +
+          chalk.dim(`${m.role}${m.local ? " local" : ""}`.padEnd(17)) +
           chalk.dim(m.id) +
           active
         );
       });
       console.log();
+      return true;
+    }
+
+    if (input.startsWith("/route")) {
+      const prompt = input.split(" ").slice(1).join(" ") || "fix my backend api bug";
+      console.log("\n" + chalk.cyan(JSON.stringify(routeInfo(prompt), null, 2)) + "\n");
+      return true;
+    }
+
+    if (input === "/local") {
+      console.log("\n" + chalk.cyan(JSON.stringify(await localModelStatus(), null, 2)) + "\n");
       return true;
     }
 

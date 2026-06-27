@@ -164,6 +164,10 @@ The implementation foundation is now in `claw.js`, `server.js`, `web/`, `core/`,
 - Server lifecycle: `core/server-lifecycle.js` lets `claw` start/check `server.js` automatically.
 - Dashboard APIs: `server.js` exposes project, world, logs, tasks, MCP metadata, memory, and optional browser snapshot endpoints.
 - Web dashboard: `web/index.html` includes status, project, tasks, logs, world, and MCP panels beside chat.
+- Model routing: `core/model-router.js` scores prompts across coding, reasoning, thinking, fast, and general routes, then builds duplicate-free cloud/local fallback queues.
+- M1-safe local AI: `core/local-ai.js` defaults to an `m1-8gb` profile and excludes heavy local models from automatic fallback unless explicitly enabled.
+- Backend structure: `backend/` splits the OpenAI-compatible proxy, REST API routes, and WebSocket chat out of `server.js`.
+- Benchmarks: `benchmark/agent.js` validates routing queues, local-only fallback, and the low-memory local model cap; `benchmark/validate.js` gates benchmark thresholds.
 - MCP metadata: `.mcp.json` can be inspected through `core/mcp-loader.js` with env values redacted.
 - Browser bridge: `core/browser.js` can snapshot page title/body text if Playwright is installed.
 - CLI controls: `/mode`, `/project`, `/server`, `/world`, `/tasks`, and `/mcp` expose the active policy and local runtime state.
