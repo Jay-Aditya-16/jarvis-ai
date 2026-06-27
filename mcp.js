@@ -1,11 +1,4 @@
 #!/usr/bin/env node
-import path            from "path";
-import { fileURLToPath } from "url";
-import dotenv          from "dotenv";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, ".env") });
-
 import { McpServer }          from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z }                  from "zod";
@@ -13,7 +6,7 @@ import { z }                  from "zod";
 import { webSearch, scrapeUrl }                          from "./core/web.js";
 import { retrieve, ingest, formatContext }               from "./core/rag.js";
 import { loadHistory, saveHistory }                      from "./core/memory.js";
-import { getClient, markKeyExhausted, MODEL_CHAIN, chooseModel } from "./core/models.js";
+import { getClientForModel, markKeyExhausted, MODEL_CHAIN, chooseModel } from "./core/models.js";
 import { detectSkills }                                  from "./core/skills.js";
 
 const server = new McpServer({ name: "jarvis", version: "1.0.0" });
@@ -70,7 +63,7 @@ server.tool("jarvis_chat", "Ask Jarvis with full model routing, RAG, and web sea
 
     for (const model of queue) {
       try {
-        const client   = getClient();
+        const client   = getClientForModel(model);
         const response = await client.chat.completions.create({
           model:       model.id,
           messages:    [{ role: "system", content: system }, ...history.slice(-20), { role: "user", content: userMsg }],

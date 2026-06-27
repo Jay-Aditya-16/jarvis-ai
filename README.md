@@ -47,12 +47,10 @@ FIRECRAWL_KEY=fc-...    # firecrawl.dev — free 500 credits/month
 ## Agent mode (claw)
 
 ```bash
-# Terminal 1
-node server.js
-
-# Terminal 2
 node claw.js
 ```
+
+`claw` now auto-checks the local web/API server and starts it when needed. Set `JARVIS_AUTO_SERVER=0` if you want to manage `node server.js` manually.
 
 `claw` uses **OpenAI function calling** — it executes commands itself, never tells you to run them.
 
@@ -79,6 +77,12 @@ node claw.js
 | `/clear` | Clear conversation history |
 | `/history` | Turn count + memory path |
 | `/models` | Show full model chain |
+| `/mode` | Show or set permissions: `read-only`, `ask-before-write`, `full-agent`, `dangerous-confirm` |
+| `/project` | Startup scan: package manager, scripts, env metadata, git state, ports, verification commands |
+| `/server` | Start/check the local web/API server |
+| `/world` | Show persistent project/task/action world summary |
+| `/tasks` | Show persistent agent tasks |
+| `/mcp` | Show configured MCP servers without exposing env values |
 | `/exit` | Quit |
 
 ---
@@ -183,16 +187,33 @@ ai.js            — conversational CLI
 server.js        — Express + WebSocket + OpenAI-compat API at :3000
 mcp.js           — Model Context Protocol server
 core/
+  agent-log.js   — JSONL run/tool/verification logs
+  browser.js     — optional Playwright browser snapshot bridge
+  editing.js     — safer line-based edit primitives
+  env.js         — project-root .env loading for global CLI use
+  mcp-loader.js  — .mcp.json metadata reader, env values redacted
   models.js      — model chain, key rotation, Ollama client
-  memory.js      — persistent conversation history
+  memory.js      — structured memory: history, preferences, facts, commands, secret metadata
+  policy.js      — permission modes and command/tool risk classifier
+  project.js     — startup project scanner and verify-command inference
+  server-lifecycle.js — local server auto-start/check helper
   skills.js      — auto skill injection, Sentinel scanner, registry
+  tasks.js       — persistent world-model task helpers
   web.js         — Firecrawl search + scraping, auto-trigger
+  world.js       — persistent local world model
   rag.js         — local vector store (vectra + transformers)
   sentinel.js    — skill security scanner (10 threat categories)
 skills/          — 28 skill markdown files
 web/             — browser chat UI
 benchmark/       — eval suite + MATLAB analysis
+rust-helpers/    — optional Rust helper binaries for indexing, fs watching, sandboxing
 ```
+
+---
+
+## Development Roadmap
+
+Jarvis is staying Node-first for the main agent loop, with Rust reserved for optional helper binaries where it clearly helps: fast indexing, safer process control, local search, filesystem watching, and future binary packaging. The first Rust helper workspace is in `rust-helpers/`. The detailed personal-agent roadmap lives in [`docs/personal-agent-roadmap.md`](docs/personal-agent-roadmap.md).
 
 ---
 

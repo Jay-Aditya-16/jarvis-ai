@@ -5,10 +5,10 @@ import figlet       from "figlet";
 import readlineSync from "readline-sync";
 import fs           from "fs";
 
-import { KEYS, getClient, markKeyExhausted, keyStatus, MODEL_CHAIN, chooseModel } from "./core/models.js";
+import { KEYS, getClientForModel, markKeyExhausted, keyStatus, MODEL_CHAIN, chooseModel } from "./core/models.js";
 import { detectSkills, fetchSkill, installNamedSkill, listSkills, scanLocalSkill, showRegistry, SKILLS_DIR, SKILL_TRIGGERS } from "./core/skills.js";
 import { resolveWebContext, webSearch, scrapeUrl, FIRECRAWL_KEY } from "./core/web.js";
-import { loadHistory, saveHistory, clearHistory, historyStats } from "./core/history.js";
+import { loadHistory, saveHistory, clearHistory, historyStats } from "./core/memory.js";
 import { retrieve, ingest, ingestDir, listDocuments, clearIndex, formatContext } from "./core/rag.js";
 
 // ── Conversation state ────────────────────────────────────────────────────────
@@ -62,9 +62,10 @@ async function askAI(userInput) {
   const userMessage = [userInput, ragCtx, webBlock].filter(Boolean).join("\n\n");
 
   for (const model of queue) {
-    for (let attempt = 0; attempt < KEYS.length; attempt++) {
+    const attempts = model.local ? 1 : KEYS.length;
+    for (let attempt = 0; attempt < attempts; attempt++) {
       try {
-        const client = getClient();
+        const client = getClientForModel(model);
         const stream = await client.chat.completions.create({
           model:       model.id,
           messages:    [
@@ -332,16 +333,34 @@ function printBanner() {
   );
 }
 
+async function handleInput(input) {
+  const trimmed = input.trim();
+  if (!trimmed) return;
+  if (trimmed === "/exit" || trimmed === "/quit") {
+    console.log(chalk.red("\nGoodbye!\n"));
+    process.exit(0);
+  }
+  if (trimmed.startsWith("/")) await handleCommand(trimmed);
+  else                         await askAI(trimmed);
+}
+
 // ── REPL ──────────────────────────────────────────────────────────────────────
 async function main() {
   console.clear();
   printBanner();
 
+  if (!process.stdin.isTTY) {
+    const piped = fs.readFileSync(0, "utf8").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (!piped.length) {
+      console.log(chalk.dim("No interactive TTY available. Pipe input or run from a terminal."));
+      return;
+    }
+    for (const line of piped) await handleInput(line);
+    return;
+  }
+
   while (true) {
-    const input = readlineSync.question(chalk.blue("You > ")).trim();
-    if (!input) continue;
-    if (input.startsWith("/")) await handleCommand(input);
-    else                        await askAI(input);
+    await handleInput(readlineSync.question(chalk.blue("You > ")));
   }
 }
 

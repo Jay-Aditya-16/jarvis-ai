@@ -5,18 +5,23 @@ import { createServer }     from "http";
 import path                 from "path";
 import { fileURLToPath }    from "url";
 import chalk                from "chalk";
-import dotenv               from "dotenv";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, ".env") });
 
 import { KEYS, getClient, getClientForModel, markKeyExhausted, MODEL_CHAIN, chooseModel } from "./core/models.js";
 import { detectSkills }                                                  from "./core/skills.js";
 import { resolveWebContext, webSearch, scrapeUrl, FIRECRAWL_KEY }       from "./core/web.js";
-import { loadHistory, saveHistory, clearHistory, getMemoryPath }        from "./core/memory.js";
+import { loadHistory, saveHistory, clearHistory, getMemoryPath, getMemoryStore, updateMemorySection } from "./core/memory.js";
 import { retrieve, ingest, listDocuments, formatContext }               from "./core/rag.js";
+import { scanProject, formatProjectContext }                            from "./core/project.js";
+import { readWorld, getWorldPath }                                      from "./core/world.js";
+import { readEvents, getLogPath }                                       from "./core/agent-log.js";
+import { listTasks, createTask, updateTask }                            from "./core/tasks.js";
+import { listMcpServers }                                               from "./core/mcp-loader.js";
+import { browserSnapshot }                                              from "./core/browser.js";
 
-const PORT = process.env.PORT ?? 3000;
+const PORT = Number(process.env.PORT ?? 3000);
+const HOST = process.env.HOST ?? "127.0.0.1";
 const app    = express();
 const server = createServer(app);
 const wss    = new WebSocketServer({ server, path: "/ws" });
@@ -99,7 +104,15 @@ app.post("/api/rag/add", async (req, res) => {
 });
 
 app.get("/api/memory", (_, res) => {
-  res.json({ history: loadHistory(), path: getMemoryPath() });
+  res.json({ store: getMemoryStore(), path: getMemoryPath() });
+});
+
+app.patch("/api/memory/:section", (req, res) => {
+  try {
+    res.json({ store: updateMemorySection(req.params.section, req.body?.value) });
+  } catch (e) {
+    res.status(400).json({ error: e.message });
+  }
 });
 
 app.delete("/api/memory", (_, res) => {
@@ -107,8 +120,53 @@ app.delete("/api/memory", (_, res) => {
   res.json({ ok: true });
 });
 
+app.get("/api/project", async (_, res) => {
+  const project = await scanProject(process.cwd()).catch((e) => ({ error: e.message }));
+  res.json({ project, formatted: formatProjectContext(project) });
+});
+
+app.get("/api/world", (_, res) => {
+  res.json({ world: readWorld(), path: getWorldPath() });
+});
+
+app.get("/api/logs", (req, res) => {
+  res.json({ events: readEvents(Number(req.query.limit || 100)), path: getLogPath() });
+});
+
+app.get("/api/tasks", (_, res) => {
+  res.json({ tasks: listTasks() });
+});
+
+app.post("/api/tasks", (req, res) => {
+  if (!req.body?.title) return res.status(400).json({ error: "title required" });
+  res.json({ task: createTask(req.body.title, req.body.details || {}) });
+});
+
+app.patch("/api/tasks/:id", (req, res) => {
+  const task = updateTask(req.params.id, req.body || {});
+  if (!task) return res.status(404).json({ error: "task not found" });
+  res.json({ task });
+});
+
+app.get("/api/mcp", (_, res) => {
+  res.json({ servers: listMcpServers(process.cwd()) });
+});
+
+app.post("/api/browser/snapshot", async (req, res) => {
+  if (!req.body?.url) return res.status(400).json({ error: "url required" });
+  res.json(await browserSnapshot(req.body.url));
+});
+
 app.get("/api/status", async (_, res) => {
-  res.json({ keys: KEYS.length, models: MODEL_CHAIN.length, firecrawl: !!FIRECRAWL_KEY, memoryPath: getMemoryPath(), docs: await listDocuments() });
+  res.json({
+    keys: KEYS.length,
+    models: MODEL_CHAIN.length,
+    firecrawl: !!FIRECRAWL_KEY,
+    memoryPath: getMemoryPath(),
+    worldPath: getWorldPath(),
+    logPath: getLogPath(),
+    docs: await listDocuments(),
+  });
 });
 
 // ── WebSocket streaming chat ──────────────────────────────────────────────────
@@ -196,9 +254,27 @@ wss.on("connection", (ws) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(chalk.cyan(`\n  🤖 Jarvis  →  http://localhost:${PORT}`));
-  console.log(chalk.dim(`  WebSocket  →  ws://localhost:${PORT}/ws`));
-  console.log(chalk.dim(`  OpenAI API →  http://localhost:${PORT}/v1`));
-  console.log(chalk.dim(`  Memory     →  ${getMemoryPath()}\n`));
+function handleListenError(err) {
+  const bind = `${HOST}:${PORT}`;
+  if (err.code === "EADDRINUSE") {
+    console.error(chalk.red(`\n  Port already in use: ${bind}`));
+    console.error(chalk.dim("  Set PORT=3001 or stop the existing server.\n"));
+  } else if (err.code === "EPERM") {
+    console.error(chalk.red(`\n  Cannot bind server on ${bind}`));
+    console.error(chalk.dim("  Check terminal/network permissions or try another PORT/HOST.\n"));
+  } else {
+    console.error(chalk.red(`\n  Server error: ${err.message}\n`));
+  }
+  process.exit(1);
+}
+
+server.on("error", handleListenError);
+wss.on("error", handleListenError);
+
+server.listen(PORT, HOST, () => {
+  const urlHost = HOST === "127.0.0.1" ? "localhost" : HOST;
+  console.log(chalk.cyan(`\n  Jarvis     ->  http://${urlHost}:${PORT}`));
+  console.log(chalk.dim(`  WebSocket  ->  ws://${urlHost}:${PORT}/ws`));
+  console.log(chalk.dim(`  OpenAI API ->  http://${urlHost}:${PORT}/v1`));
+  console.log(chalk.dim(`  Memory     ->  ${getMemoryPath()}\n`));
 });

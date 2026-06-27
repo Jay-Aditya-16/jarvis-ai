@@ -1,6 +1,5 @@
 import OpenAI from "openai";
-import dotenv from "dotenv";
-dotenv.config();
+import "./env.js";
 
 export const KEYS = [
   process.env.OR_KEY_1,
