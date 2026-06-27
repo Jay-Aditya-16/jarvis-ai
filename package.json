@@ -14,7 +14,7 @@
     "mcp": "node mcp.js",
     "benchmark": "node benchmark/run.js",
     "benchmark:validate": "node benchmark/validate.js",
-    "benchmark:matlab": "matlab -batch \"run('benchmark/analyze.m')\""
+    "benchmark:matlab": "${MATLAB_BIN:-/Applications/MATLAB_R2025b.app/bin/matlab} -batch \"run('benchmark/analyze.m')\""
   },
   "keywords": [
     "ai",

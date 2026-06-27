@@ -9,6 +9,23 @@ const resultsPath = path.join(__dirname, "results.json");
 const validationPath = path.join(__dirname, "validation-summary.json");
 
 const data = JSON.parse(fs.readFileSync(resultsPath, "utf8"));
+const MATLAB_CANDIDATES = [
+  process.env.MATLAB_BIN,
+  "/Applications/MATLAB_R2025b.app/bin/matlab",
+  "/Applications/MATLAB_R2025a.app/bin/matlab",
+  "matlab",
+].filter(Boolean);
+
+function findMatlab() {
+  for (const bin of MATLAB_CANDIDATES) {
+    if (bin.includes("/") && fs.existsSync(bin)) return bin;
+    try { return execFileSync("command", ["-v", bin], { encoding: "utf8" }).trim(); }
+    catch {}
+  }
+  return null;
+}
+
+const matlabBinary = findMatlab();
 const thresholds = {
   routing_accuracy: 0.90,
   skills_f1: 0.70,
@@ -36,14 +53,8 @@ const summary = {
   checks,
   actual,
   matlab: {
-    available: (() => {
-      try {
-        execFileSync("matlab", ["-batch", "version"], { stdio: "ignore", timeout: 5000 });
-        return true;
-      } catch {
-        return false;
-      }
-    })(),
+    available: !!matlabBinary,
+    binary: matlabBinary,
     command: "npm run benchmark:matlab",
     script: "benchmark/analyze.m",
   },

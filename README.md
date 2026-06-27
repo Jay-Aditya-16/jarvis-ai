@@ -247,7 +247,7 @@ Run validation:
 ```bash
 npm run benchmark
 npm run benchmark:validate
-npm run benchmark:matlab  # requires MATLAB on PATH
+npm run benchmark:matlab  # uses MATLAB_BIN or /Applications/MATLAB_R2025b.app/bin/matlab
 ```
 
 ---

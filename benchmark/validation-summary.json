@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-06-27T23:02:14.709Z",
+  "timestamp": "2026-06-27T23:57:10.185Z",
   "passed": true,
   "checks": [
     {
@@ -42,7 +42,8 @@
     "overall": 1
   },
   "matlab": {
-    "available": false,
+    "available": true,
+    "binary": "/Applications/MATLAB_R2025b.app/bin/matlab",
     "command": "npm run benchmark:matlab",
     "script": "benchmark/analyze.m"
   }
