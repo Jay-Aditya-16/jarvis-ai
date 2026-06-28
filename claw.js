@@ -653,14 +653,16 @@ async function execTool(name, args) {
 }
 
 // ── Call model ────────────────────────────────────────────────────────────────
-async function callModel(messages, preferredModel, routePrompt) {
+async function callModel(messages, preferredModel, routePrompt, runState = {}) {
   const queue = buildModelQueue(routePrompt || messages.at(-1)?.content || "", {
-    preferredModel: preferLocalSession ? null : preferredModel,
+    preferredModel: preferLocalSession ? null : (runState.lastGoodModel || preferredModel),
     preferLocal: preferLocalSession,
   });
   let cloudUnavailable = false;
+  runState.skipModelIds = runState.skipModelIds || new Set();
 
   for (const model of queue) {
+    if (runState.skipModelIds.has(model.id)) continue;
     if (cloudUnavailable && !model.local) continue;
     const maxAttempts = modelAttempts(model);
     for (let i = 0; i < maxAttempts; i++) {
@@ -669,11 +671,13 @@ async function callModel(messages, preferredModel, routePrompt) {
         const params = { model: model.id, messages, max_tokens: 8192, temperature: 0.3 };
         if (!model.local) { params.tools = TOOLS; params.tool_choice = "required"; }
         const resp = await client.chat.completions.create(params);
+        runState.lastGoodModel = model;
         return { message: resp.choices[0].message, model };
       } catch (err) {
         const s = err?.status ?? err?.response?.status;
         if (!model.local && s === 429 && !err?.error?.metadata?.provider_name) { markKeyExhausted(); continue; }
         if (!model.local && isCloudNetworkError(err)) { cloudUnavailable = true; break; }
+        runState.skipModelIds.add(model.id);
         break;
       }
     }
@@ -762,13 +766,14 @@ async function agent(userInput, activeModel) {
 
   let loops = 0, savedReply = "", toolCalls = 0;
   let thinkSpinner = ora({ text: "", spinner: "dots", color: "cyan" });
+  const runState = { skipModelIds: new Set(), lastGoodModel: null };
 
   while (loops++ < MAX_LOOPS) {
     thinkSpinner = ora({ prefixText: "  ", spinner: "dots2", color: "cyan" }).start();
 
     let result;
     try {
-      result = await callModel(messages, preferred, userInput);
+      result = await callModel(messages, preferred, userInput, runState);
       thinkSpinner.stop();
     } catch (e) {
       thinkSpinner.stop();

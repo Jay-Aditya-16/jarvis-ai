@@ -56,8 +56,8 @@ export function keyStatus() {
 
 // ── Models ─────────────────────────────────────────────────────────────────────
 export const CLOUD_MODELS = [
-  { id: "qwen/qwen3-coder:free",                  name: "Qwen3 Coder",      emoji: "🐉", role: "coding",    priority: 100 },
-  { id: "poolside/laguna-m.1:free",               name: "Laguna M.1",       emoji: "💻", role: "coding",    priority: 90 },
+  { id: "poolside/laguna-m.1:free",               name: "Laguna M.1",       emoji: "💻", role: "coding",    priority: 100 },
+  { id: "qwen/qwen3-coder:free",                  name: "Qwen3 Coder",      emoji: "🐉", role: "coding",    priority: 90 },
   { id: "openai/gpt-oss-120b:free",               name: "GPT-OSS 120B",     emoji: "🔥", role: "reasoning", priority: 100 },
   { id: "nvidia/nemotron-3-super-120b-a12b:free", name: "Nemotron Super",   emoji: "🧠", role: "reasoning", priority: 90 },
   { id: "arcee-ai/trinity-large-thinking:free",   name: "Trinity Thinking", emoji: "💭", role: "thinking",  priority: 100 },
