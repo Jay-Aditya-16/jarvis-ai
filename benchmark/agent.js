@@ -1,10 +1,37 @@
 import { buildModelQueue } from "../core/models.js";
 import { getLocalModelPlan } from "../core/local-ai.js";
+import { getSmallTalkReply, wantsLocalPreference } from "../core/input-shortcuts.js";
 import { AGENT_CASES } from "./dataset.js";
 
 export function runAgentBenchmark() {
   const plan = getLocalModelPlan();
   const results = AGENT_CASES.map((test) => {
+    if (test.shortcut) {
+      const reply = getSmallTalkReply(test.prompt);
+      const localPreference = wantsLocalPreference(test.prompt);
+      const checks = [
+        {
+          name: "shortcut-reply",
+          pass: test.expectReply ? reply === test.expectReply : true,
+          got: reply,
+          expected: test.expectReply,
+        },
+        {
+          name: "shortcut-local-preference",
+          pass: test.expectLocalPreference === undefined || localPreference === test.expectLocalPreference,
+          got: localPreference,
+          expected: test.expectLocalPreference,
+        },
+      ];
+      return {
+        label: test.label,
+        prompt: test.prompt,
+        shortcut: true,
+        checks,
+        pass: checks.every((check) => check.pass),
+      };
+    }
+
     const queue = buildModelQueue(test.prompt, { localOnly: !!test.localOnly });
     const ids = queue.map((model) => model.id);
     const first = queue[0];

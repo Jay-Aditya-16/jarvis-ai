@@ -77,6 +77,18 @@ export const AGENT_CASES = [
     localOnly: true,
     forbiddenPattern: /(^|:)(7b|8b|12b|14b|27b|32b|70b|120b)/i,
   },
+  {
+    label: "greeting-short-circuits-agent-loop",
+    prompt: "hi",
+    shortcut: true,
+    expectReply: "Hey. I'm here.",
+  },
+  {
+    label: "local-preference-short-circuits-agent-loop",
+    prompt: "use local fallback",
+    shortcut: true,
+    expectLocalPreference: true,
+  },
 ];
 
 // ── Skill trigger dataset ──────────────────────────────────────────────────────

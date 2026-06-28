@@ -5,14 +5,16 @@ import figlet       from "figlet";
 import readlineSync from "readline-sync";
 import fs           from "fs";
 
-import { KEYS, getClientForModel, markKeyExhausted, keyStatus, MODEL_CHAIN, chooseModel, buildModelQueue, modelAttempts, routeInfo, localModelStatus } from "./core/models.js";
+import { KEYS, getClientForModel, markKeyExhausted, keyStatus, MODEL_CHAIN, chooseModel, buildModelQueue, modelAttempts, routeInfo, localModelStatus, isCloudNetworkError } from "./core/models.js";
 import { detectSkills, fetchSkill, installNamedSkill, listSkills, scanLocalSkill, showRegistry, SKILLS_DIR, SKILL_TRIGGERS } from "./core/skills.js";
 import { resolveWebContext, webSearch, scrapeUrl, FIRECRAWL_KEY } from "./core/web.js";
 import { loadHistory, saveHistory, clearHistory, historyStats } from "./core/memory.js";
 import { retrieve, ingest, ingestDir, listDocuments, clearIndex, formatContext } from "./core/rag.js";
+import { getSmallTalkReply, wantsLocalPreference, wantsCloudPreference } from "./core/input-shortcuts.js";
 
 // ── Conversation state ────────────────────────────────────────────────────────
 let history = loadHistory();
+let preferLocalSession = process.env.JARVIS_PREFER_LOCAL === "1";
 
 const BASE_SYSTEM = `You are Jarvis, an advanced AI terminal assistant.
 You excel at coding, debugging, shell commands, architecture, AI systems, drones, robotics, cybersecurity, and startup MVPs.
@@ -22,7 +24,35 @@ CRITICAL RULE: When the user's message includes sections labeled [RAG CONTEXT] o
 
 // ── Core ask ──────────────────────────────────────────────────────────────────
 async function askAI(userInput) {
-  const preferred = chooseModel(userInput);
+  const smallTalk = getSmallTalkReply(userInput);
+  if (smallTalk) {
+    console.log(chalk.green(`\nJarvis > ${smallTalk}\n`));
+    history.push({ role: "user", content: userInput });
+    history.push({ role: "assistant", content: smallTalk });
+    saveHistory(history);
+    return;
+  }
+  if (wantsLocalPreference(userInput)) {
+    preferLocalSession = true;
+    const reply = "Local fallback is now preferred for this session. Use `/local` to see the local model plan.";
+    console.log(chalk.green(`\nJarvis > ${reply}\n`));
+    history.push({ role: "user", content: userInput });
+    history.push({ role: "assistant", content: reply });
+    saveHistory(history);
+    return;
+  }
+  if (wantsCloudPreference(userInput)) {
+    preferLocalSession = false;
+    const reply = "Cloud models are preferred again, with local still available as fallback.";
+    console.log(chalk.green(`\nJarvis > ${reply}\n`));
+    history.push({ role: "user", content: userInput });
+    history.push({ role: "assistant", content: reply });
+    saveHistory(history);
+    return;
+  }
+
+  const queue = buildModelQueue(userInput, { preferLocal: preferLocalSession });
+  const preferred = queue[0] || chooseModel(userInput);
   const skills    = detectSkills(userInput);
 
   if (skills.length) {
@@ -35,7 +65,6 @@ async function askAI(userInput) {
     ? `${BASE_SYSTEM}\n\n=== ACTIVE SKILLS ===\n${skillBlock}`
     : BASE_SYSTEM;
 
-  const queue   = buildModelQueue(userInput);
   const spinner = ora(`${preferred.emoji} ${preferred.name}`).start();
 
   // RAG retrieval — runs in parallel with web context
@@ -61,7 +90,9 @@ async function askAI(userInput) {
 
   const userMessage = [userInput, ragCtx, webBlock].filter(Boolean).join("\n\n");
 
+  let cloudUnavailable = false;
   for (const model of queue) {
+    if (cloudUnavailable && !model.local) continue;
     const attempts = modelAttempts(model);
     for (let attempt = 0; attempt < attempts; attempt++) {
       try {
@@ -103,6 +134,7 @@ async function askAI(userInput) {
 
         if (status === 429 && isUpstream)  break;    // upstream throttle → next model
         if (status === 429 && !isUpstream) { markKeyExhausted(); continue; } // key limit → next key
+        if (!model.local && isCloudNetworkError(err)) { cloudUnavailable = true; break; }
         break;
       }
     }

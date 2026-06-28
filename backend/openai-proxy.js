@@ -1,4 +1,4 @@
-import { getClientForModel, markKeyExhausted, buildModelQueue, modelAttempts } from "../core/models.js";
+import { getClientForModel, markKeyExhausted, buildModelQueue, modelAttempts, isCloudNetworkError } from "../core/models.js";
 
 export function registerOpenAIProxy(app) {
   app.get("/v1/models", (_, res) => {
@@ -18,7 +18,9 @@ export function registerOpenAIProxy(app) {
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
+      let cloudUnavailable = false;
       for (const model of queue) {
+        if (cloudUnavailable && !model.local) continue;
         for (let attempt = 0; attempt < modelAttempts(model); attempt++) {
           try {
             const client = getClientForModel(model);
@@ -36,6 +38,7 @@ export function registerOpenAIProxy(app) {
             const status = err?.status ?? err?.response?.status;
             const isUpstream = err?.error?.metadata?.provider_name;
             if (!model.local && status === 429 && !isUpstream) { markKeyExhausted(); continue; }
+            if (!model.local && isCloudNetworkError(err)) { cloudUnavailable = true; break; }
             break;
           }
         }
@@ -44,7 +47,9 @@ export function registerOpenAIProxy(app) {
       return res.end();
     }
 
+    let cloudUnavailable = false;
     for (const model of queue) {
+      if (cloudUnavailable && !model.local) continue;
       for (let attempt = 0; attempt < modelAttempts(model); attempt++) {
         try {
           const client = getClientForModel(model);
@@ -59,6 +64,7 @@ export function registerOpenAIProxy(app) {
           const status = err?.status ?? err?.response?.status;
           const isUpstream = err?.error?.metadata?.provider_name;
           if (!model.local && status === 429 && !isUpstream) { markKeyExhausted(); continue; }
+          if (!model.local && isCloudNetworkError(err)) { cloudUnavailable = true; break; }
           break;
         }
       }

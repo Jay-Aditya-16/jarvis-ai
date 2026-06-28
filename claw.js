@@ -9,7 +9,7 @@ import chalk         from "chalk";
 import ora           from "ora";
 import { fileURLToPath } from "url";
 
-import { getClientForModel, MODEL_CHAIN, chooseModel, markKeyExhausted, KEYS, buildModelQueue, modelAttempts, routeInfo, localModelStatus } from "./core/models.js";
+import { getClientForModel, MODEL_CHAIN, chooseModel, markKeyExhausted, KEYS, buildModelQueue, modelAttempts, routeInfo, localModelStatus, isCloudNetworkError } from "./core/models.js";
 import { detectSkills }                                                          from "./core/skills.js";
 import { resolveWebContext }                                                     from "./core/web.js";
 import { loadHistory, saveHistory, clearHistory, historyStats }                 from "./core/memory.js";
@@ -23,6 +23,7 @@ import { readWorld, updateProjectWorld, recordAction }                          
 import { listTasks, createTask, updateTask }                                      from "./core/tasks.js";
 import { listMcpServers }                                                         from "./core/mcp-loader.js";
 import { browserSnapshot }                                                        from "./core/browser.js";
+import { getSmallTalkReply, wantsLocalPreference, wantsCloudPreference }           from "./core/input-shortcuts.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -32,6 +33,7 @@ const MAX_LOOPS = 15;
 let history = loadHistory();
 let permissionMode = normalizeMode(process.env.JARVIS_MODE || "ask-before-write");
 let currentRunChangedFiles = new Set();
+let preferLocalSession = process.env.JARVIS_PREFER_LOCAL === "1";
 
 // ── ASCII art ─────────────────────────────────────────────────────────────────
 const CLAW_LOGO = [
@@ -415,6 +417,20 @@ function buildPlanScaffold(userInput, project) {
   ].join("\n");
 }
 
+function directSmallTalk(input) {
+  const smallTalk = getSmallTalkReply(input);
+  if (smallTalk) return smallTalk;
+  if (wantsLocalPreference(input)) {
+    preferLocalSession = true;
+    return "Local fallback is now preferred for this session. Use `/local` to see the local model plan.";
+  }
+  if (wantsCloudPreference(input)) {
+    preferLocalSession = false;
+    return "Cloud models are preferred again, with local still available as fallback.";
+  }
+  return null;
+}
+
 async function askApproval(decision, name, args) {
   if (!process.stdin.isTTY || !process.stdout.isTTY) return false;
   const preview = name === "bash" ? args.command : `${name} ${args.path || ""}`;
@@ -637,11 +653,16 @@ async function execTool(name, args) {
 }
 
 // ── Call model ────────────────────────────────────────────────────────────────
-async function callModel(messages, preferredModel) {
-  const queue = buildModelQueue(messages.at(-1)?.content || "", { preferredModel });
+async function callModel(messages, preferredModel, routePrompt) {
+  const queue = buildModelQueue(routePrompt || messages.at(-1)?.content || "", {
+    preferredModel: preferLocalSession ? null : preferredModel,
+    preferLocal: preferLocalSession,
+  });
+  let cloudUnavailable = false;
 
   for (const model of queue) {
-      const maxAttempts = modelAttempts(model);
+    if (cloudUnavailable && !model.local) continue;
+    const maxAttempts = modelAttempts(model);
     for (let i = 0; i < maxAttempts; i++) {
       try {
         const client = getClientForModel(model);
@@ -652,6 +673,7 @@ async function callModel(messages, preferredModel) {
       } catch (err) {
         const s = err?.status ?? err?.response?.status;
         if (!model.local && s === 429 && !err?.error?.metadata?.provider_name) { markKeyExhausted(); continue; }
+        if (!model.local && isCloudNetworkError(err)) { cloudUnavailable = true; break; }
         break;
       }
     }
@@ -686,7 +708,16 @@ function parseXMLTools(text) {
 async function agent(userInput, activeModel) {
   const t0       = Date.now();
   currentRunChangedFiles = new Set();
-  const preferred = activeModel ?? chooseModel(userInput);
+  const directReply = directSmallTalk(userInput);
+  if (directReply) {
+    process.stdout.write(`\n${chalk.white(directReply)}\n`);
+    history.push({ role: "user", content: userInput });
+    history.push({ role: "assistant", content: directReply });
+    saveHistory(history);
+    return;
+  }
+
+  const preferred = preferLocalSession ? buildModelQueue(userInput, { preferLocal: true })[0] : (activeModel ?? chooseModel(userInput));
   const skills    = detectSkills(userInput);
 
   if (skills.length)
@@ -715,10 +746,10 @@ async function agent(userInput, activeModel) {
   const ragBlock = ragChunks.length ? `[RAG CONTEXT]\n${formatContext(ragChunks)}\n[END RAG CONTEXT]` : "";
   const webBlock = webCtx           ? `[WEB CONTEXT]\n${webCtx}\n[END WEB CONTEXT]`                  : "";
   const planBlock = buildPlanScaffold(userInput, project || {});
-  const userMsg  = [userInput, planBlock, ragBlock, webBlock].filter(Boolean).join("\n\n");
+  const userMsg  = [userInput, ragBlock, webBlock].filter(Boolean).join("\n\n");
 
   const messages = [
-    { role: "system", content: sysPrompt },
+    { role: "system", content: `${sysPrompt}\n\n${planBlock}\nDo not print or describe the task plan scaffold. Use it only as private guidance.` },
     ...history.slice(-20),
     { role: "user",   content: userMsg },
   ];
@@ -737,7 +768,7 @@ async function agent(userInput, activeModel) {
 
     let result;
     try {
-      result = await callModel(messages, preferred);
+      result = await callModel(messages, preferred, userInput);
       thinkSpinner.stop();
     } catch (e) {
       thinkSpinner.stop();

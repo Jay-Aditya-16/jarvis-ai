@@ -6,7 +6,7 @@ import { z }                  from "zod";
 import { webSearch, scrapeUrl }                          from "./core/web.js";
 import { retrieve, ingest, formatContext }               from "./core/rag.js";
 import { loadHistory, saveHistory }                      from "./core/memory.js";
-import { getClientForModel, markKeyExhausted, buildModelQueue, modelAttempts } from "./core/models.js";
+import { getClientForModel, markKeyExhausted, buildModelQueue, modelAttempts, isCloudNetworkError } from "./core/models.js";
 import { detectSkills }                                  from "./core/skills.js";
 
 const server = new McpServer({ name: "jarvis", version: "1.0.0" });
@@ -60,7 +60,9 @@ server.tool("jarvis_chat", "Ask Jarvis with full model routing, RAG, and web sea
     const userMsg    = [message, ragCtx].filter(Boolean).join("\n\n");
     const queue      = buildModelQueue(message);
 
+    let cloudUnavailable = false;
     for (const model of queue) {
+      if (cloudUnavailable && !model.local) continue;
       for (let attempt = 0; attempt < modelAttempts(model); attempt++) {
         try {
           const client   = getClientForModel(model);
@@ -78,6 +80,7 @@ server.tool("jarvis_chat", "Ask Jarvis with full model routing, RAG, and web sea
         } catch (err) {
           const s = err?.status ?? err?.response?.status;
           if (!model.local && s === 429) { markKeyExhausted(); continue; }
+          if (!model.local && isCloudNetworkError(err)) { cloudUnavailable = true; break; }
           break;
         }
       }

@@ -2,7 +2,8 @@ import { detectSkills } from "../core/skills.js";
 import { resolveWebContext } from "../core/web.js";
 import { loadHistory, saveHistory } from "../core/memory.js";
 import { retrieve, formatContext } from "../core/rag.js";
-import { getClientForModel, markKeyExhausted, buildModelQueue, modelAttempts } from "../core/models.js";
+import { getClientForModel, markKeyExhausted, buildModelQueue, modelAttempts, isCloudNetworkError } from "../core/models.js";
+import { getSmallTalkReply } from "../core/input-shortcuts.js";
 
 const BASE_SYSTEM = `You are Jarvis, an advanced AI terminal assistant.
 You excel at coding, debugging, shell commands, architecture, AI systems, drones, robotics, cybersecurity, and startup MVPs.
@@ -21,6 +22,16 @@ export function registerWebSocketChat(wss) {
 
       const userInput = msg.message.trim();
       const send = (obj) => ws.readyState === 1 && ws.send(JSON.stringify(obj));
+      const smallTalk = getSmallTalkReply(userInput);
+      if (smallTalk) {
+        send({ type: "start", model: "Jarvis" });
+        send({ type: "chunk", content: smallTalk });
+        send({ type: "done", model: "Jarvis" });
+        history.push({ role: "user", content: userInput });
+        history.push({ role: "assistant", content: smallTalk });
+        saveHistory(history);
+        return;
+      }
       const skills = detectSkills(userInput);
       const skillBlock = skills.map((s) => s.content).join("\n\n---\n\n");
       const systemPrompt = skillBlock ? `${BASE_SYSTEM}\n\n=== ACTIVE SKILLS ===\n${skillBlock}` : BASE_SYSTEM;
@@ -42,8 +53,10 @@ export function registerWebSocketChat(wss) {
       const queue = buildModelQueue(userInput);
 
       let replied = false;
+      let cloudUnavailable = false;
       for (const model of queue) {
         if (replied) break;
+        if (cloudUnavailable && !model.local) continue;
         for (let attempt = 0; attempt < modelAttempts(model); attempt++) {
           try {
             const client = getClientForModel(model);
@@ -74,6 +87,7 @@ export function registerWebSocketChat(wss) {
             const status = err?.status ?? err?.response?.status;
             const isUpstream = err?.error?.metadata?.provider_name;
             if (!model.local && status === 429 && !isUpstream) { markKeyExhausted(); continue; }
+            if (!model.local && isCloudNetworkError(err)) { cloudUnavailable = true; break; }
             break;
           }
         }

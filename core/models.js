@@ -93,6 +93,11 @@ export function modelAttempts(model) {
   return Math.max(1, Math.min(KEYS.length, Number(process.env.JARVIS_KEY_ATTEMPTS || 2)));
 }
 
+export function isCloudNetworkError(err) {
+  const text = `${err?.code || ""} ${err?.message || ""} ${err?.cause?.code || ""}`.toLowerCase();
+  return !err?.status && /(fetch failed|network|enotfound|econnreset|econnrefused|etimedout|socket|offline|getaddrinfo)/i.test(text);
+}
+
 export function routeInfo(prompt) {
   return {
     route: classifyPrompt(prompt),
