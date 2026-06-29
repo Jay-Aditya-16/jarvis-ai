@@ -8,6 +8,7 @@ import { runSkillsBenchmark }   from "./skills.js";
 import { runRagBenchmark }      from "./rag.js";
 import { runSentinelBenchmark } from "./sentinel.js";
 import { runAgentBenchmark }    from "./agent.js";
+import { runLifeBenchmark }     from "./life.js";
 
 const __dirname  = path.dirname(fileURLToPath(import.meta.url));
 const OUT_FILE   = path.join(__dirname, "results.json");
@@ -80,14 +81,23 @@ async function main() {
   console.log(`  Local profile     ${agent.localProfile.profile} · ${agent.localProfile.arch} · ${agent.localProfile.totalRamGb}GB RAM`);
   console.log(`  Safe local models ${agent.safeLocalModels.map((m) => m.id).join(", ")}`);
 
+  // ── 6. LifeOS layer ─────────────────────────────────────────────────────────
+  process.stdout.write("\n  Running LifeOS layer benchmark...");
+  const life = await runLifeBenchmark();
+  suite.life = life;
+  console.log(`  done  (${life.total} checks)\n`);
+  console.log(`  LifeOS layer      ${bar(life.accuracy)} ${pct(life.accuracy)}`);
+  console.log(`  LifeOS test root  ${life.root}`);
+
   // ── Failures ─────────────────────────────────────────────────────────────────
   const routing_fails  = routing.results.filter((r) => !r.pass);
   const skills_fails   = skills.results.filter((r) => !r.pass);
   const rag_fails      = rag.results.filter((r) => r.hit_at_3 === 0);
   const sentinel_fails = sentinel.results.filter((r) => !r.pass);
   const agent_fails    = agent.results.filter((r) => !r.pass);
+  const life_fails     = life.checks.filter((r) => !r.pass);
 
-  if (routing_fails.length || skills_fails.length || rag_fails.length || sentinel_fails.length || agent_fails.length) {
+  if (routing_fails.length || skills_fails.length || rag_fails.length || sentinel_fails.length || agent_fails.length || life_fails.length) {
     console.log("\n  ── Failures ─────────────────────────────────────────────");
     routing_fails.forEach((r)  => console.log(`  [ROUTING]  "${r.prompt}" → got ${r.got}, expected ${r.expected}`));
     skills_fails.forEach((r)   => {
@@ -97,10 +107,11 @@ async function main() {
     rag_fails.forEach((r)      => console.log(`  [RAG]      "${r.query}" → got [${r.retrieved.join(", ")}], want [${r.relevant_sources.join(", ")}]`));
     sentinel_fails.forEach((r) => console.log(`  [SENTINEL] "${r.label}" → got ${r.got}, expected ${r.expected}`));
     agent_fails.forEach((r)    => console.log(`  [AGENT]    "${r.label}" → failed checks: ${r.checks.filter((c) => !c.pass).map((c) => c.name).join(", ")}`));
+    life_fails.forEach((r)     => console.log(`  [LIFE]     "${r.name}" → got ${JSON.stringify(r.got)}, expected ${JSON.stringify(r.expected)}`));
   }
 
   // ── Overall score ─────────────────────────────────────────────────────────
-  const overall = (routing.accuracy + skills.f1 + rag.mean_ndcg + sentinel.accuracy + agent.accuracy) / 5;
+  const overall = (routing.accuracy + skills.f1 + rag.mean_ndcg + sentinel.accuracy + agent.accuracy + life.accuracy) / 6;
   suite.overall = +overall.toFixed(4);
   suite.timestamp = new Date().toISOString();
 

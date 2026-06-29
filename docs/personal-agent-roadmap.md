@@ -57,6 +57,8 @@ After each tool round, the agent should update progress and decide whether to co
 
 ### 3. Better Memory
 
+Add a LifeOS-inspired personal layer for TELOS, ideal states, identity, preferences, daily notes, weekly reviews, decisions, and learnings. Keep it plain Markdown so it stays inspectable, searchable, and portable.
+
 Split memory into separate stores:
 
 - conversation history
@@ -159,6 +161,7 @@ The implementation foundation is now in `claw.js`, `server.js`, `web/`, `core/`,
 - Agent context: each task receives project context, active permission mode, and a task-plan scaffold for inspect/diagnose/edit/test/summarize.
 - Verification: changed-file runs trigger inferred checks such as `npm test`, `npm run lint`, and `node --check` where available.
 - Memory: `core/memory.js` now separates conversation history, preferences, project facts, recurring tasks, known commands, and secret metadata.
+- LifeOS layer: `core/life.js` adds filesystem-first TELOS, identity, preferences, ideal states, daily notes, weekly reviews, decisions, and learnings under `~/.jarvis-unified/life`.
 - World model: `core/world.js` persists projects, tasks, recent actions, and expectations without storing secret values.
 - Agent logs: `core/agent-log.js` records agent runs, tool calls, and verification summaries as JSONL.
 - Server lifecycle: `core/server-lifecycle.js` lets `claw` start/check `server.js` automatically.

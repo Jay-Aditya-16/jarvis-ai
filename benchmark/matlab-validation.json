@@ -1,12 +1,13 @@
 {
-  "timestamp": "2026-06-28T05:27:40+05:30",
+  "timestamp": "2026-06-30T03:49:12+05:30",
   "passed": true,
   "thresholds": {
     "routing_accuracy": 0.9,
     "skills_f1": 0.7,
     "rag_ndcg": 0.5,
     "sentinel_accuracy": 0.8,
-    "agent_accuracy": 1
+    "agent_accuracy": 1,
+    "life_accuracy": 1
   },
   "actual": {
     "routing_accuracy": 1,
@@ -14,6 +15,7 @@
     "rag_ndcg": 1,
     "sentinel_accuracy": 1,
     "agent_accuracy": 1,
+    "life_accuracy": 1,
     "overall": 1
   }
 }

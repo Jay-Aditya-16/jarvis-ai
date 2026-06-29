@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-06-27T23:57:10.185Z",
+  "timestamp": "2026-06-29T22:14:32.441Z",
   "passed": true,
   "checks": [
     {
@@ -31,6 +31,12 @@
       "min": 1,
       "actual": 1,
       "pass": true
+    },
+    {
+      "name": "life_accuracy",
+      "min": 1,
+      "actual": 1,
+      "pass": true
     }
   ],
   "actual": {
@@ -39,6 +45,7 @@
     "rag_ndcg": 1,
     "sentinel_accuracy": 1,
     "agent_accuracy": 1,
+    "life_accuracy": 1,
     "overall": 1
   },
   "matlab": {

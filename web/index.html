@@ -133,7 +133,7 @@
     display: flex; flex-direction: column;
   }
   .dash-tabs {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
     padding: 10px; border-bottom: 1px solid var(--border);
   }
   .dash-tabs button, .task-form button {
@@ -210,6 +210,7 @@
         <button data-panel="models">Models</button>
         <button data-panel="logs">Logs</button>
         <button data-panel="world">World</button>
+        <button data-panel="life">Life</button>
         <button data-panel="mcp">MCP</button>
       </div>
       <div id="dash-content"></div>
@@ -234,6 +235,7 @@ const PANEL_ENDPOINTS = {
   models: '/api/models',
   logs: '/api/logs?limit=40',
   world: '/api/world',
+  life: '/api/life',
   mcp: '/api/mcp',
 };
 

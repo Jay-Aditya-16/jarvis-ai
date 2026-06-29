@@ -32,6 +32,7 @@ const thresholds = {
   rag_ndcg: 0.50,
   sentinel_accuracy: 0.80,
   agent_accuracy: 1.00,
+  life_accuracy: 1.00,
 };
 const actual = {
   routing_accuracy: data.routing.accuracy,
@@ -39,6 +40,7 @@ const actual = {
   rag_ndcg: data.rag.mean_ndcg,
   sentinel_accuracy: data.sentinel.accuracy,
   agent_accuracy: data.agent.accuracy,
+  life_accuracy: data.life?.accuracy ?? 0,
   overall: data.overall,
 };
 const checks = Object.entries(thresholds).map(([name, min]) => ({

@@ -86,6 +86,8 @@ export function evaluateToolPolicy(name, args = {}, mode = "ask-before-write") {
     "git_diff",
     "preview_edit",
     "browser_snapshot",
+    "life_summary",
+    "life_read",
   ].includes(name)) {
     return { action: "allow", reason: "read-only tool" };
   }
@@ -108,6 +110,12 @@ export function evaluateToolPolicy(name, args = {}, mode = "ask-before-write") {
     if (activeMode === "ask-before-write") return { action: "confirm", level, reason: `${name} on ${fp}` };
     if (level === "dangerous") return { action: "confirm", level, reason: `protected or secret-adjacent write to ${fp}` };
     return { action: "allow", reason: "write allowed by active mode" };
+  }
+
+  if (["life_append", "life_ideal", "life_daily", "life_weekly"].includes(name)) {
+    if (activeMode === "read-only") return { action: "deny", reason: "read-only mode blocks LifeOS note changes" };
+    if (activeMode === "ask-before-write") return { action: "confirm", level: "write", reason: `${name} changes local LifeOS notes` };
+    return { action: "allow", reason: "LifeOS note changes allowed by active mode" };
   }
 
   if (["create_task", "update_task"].includes(name)) {

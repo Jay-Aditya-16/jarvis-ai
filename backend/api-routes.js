@@ -8,6 +8,7 @@ import { readEvents, getLogPath } from "../core/agent-log.js";
 import { listTasks, createTask, updateTask } from "../core/tasks.js";
 import { listMcpServers } from "../core/mcp-loader.js";
 import { browserSnapshot } from "../core/browser.js";
+import { lifeSummary, getLifeRoot, formatLifeContext, readLifeFile, appendLifeEntry, createIdealState, createDailyNote, createWeeklyReview } from "../core/life.js";
 
 export function registerApiRoutes(app) {
   app.post("/api/search", async (req, res) => {
@@ -83,6 +84,54 @@ export function registerApiRoutes(app) {
     res.json({ servers: listMcpServers(process.cwd()) });
   });
 
+  app.get("/api/life", (_, res) => {
+    res.json({ summary: lifeSummary(), context: formatLifeContext() });
+  });
+
+  app.get("/api/life/file", (req, res) => {
+    try {
+      const filePath = String(req.query.path || "README.md");
+      res.type("text/plain").send(readLifeFile(filePath));
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/life/entry", (req, res) => {
+    try {
+      const { section = "LEARNINGS", title = "Note", content = "" } = req.body || {};
+      res.json({ entry: appendLifeEntry(section, title, content) });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/life/ideal", (req, res) => {
+    try {
+      const { title, currentState = "", idealState = "", criteria = [] } = req.body || {};
+      if (!title) return res.status(400).json({ error: "title required" });
+      res.json({ ideal: createIdealState(title, currentState, idealState, criteria) });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/life/daily", (req, res) => {
+    try {
+      res.json({ note: createDailyNote(req.body?.date) });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/life/weekly", (req, res) => {
+    try {
+      res.json({ note: createWeeklyReview(req.body?.date) });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+  });
+
   app.post("/api/browser/snapshot", async (req, res) => {
     if (!req.body?.url) return res.status(400).json({ error: "url required" });
     res.json(await browserSnapshot(req.body.url));
@@ -105,6 +154,7 @@ export function registerApiRoutes(app) {
       firecrawl: !!FIRECRAWL_KEY,
       memoryPath: getMemoryPath(),
       worldPath: getWorldPath(),
+      lifePath: getLifeRoot(),
       logPath: getLogPath(),
       docs: await listDocuments(),
       local: await localModelStatus(),

@@ -81,6 +81,13 @@ node claw.js
 | `/local` | Show M1-safe Ollama fallback plan and installed local models |
 | `/mode` | Show or set permissions: `read-only`, `ask-before-write`, `full-agent`, `dangerous-confirm` |
 | `/project` | Startup scan: package manager, scripts, env metadata, git state, ports, verification commands |
+| `/life` | Show LifeOS root, TELOS files, zones, and recent notes |
+| `/telos` | Show mission and goals from the LifeOS layer |
+| `/ideal <title>` | Create an Ideal State artifact |
+| `/daily [YYYY-MM-DD]` | Create/open a daily note |
+| `/weekly [YYYY-MM-DD]` | Create/open a weekly review |
+| `/learn <note>` | Record a reusable learning |
+| `/decision <note>` | Record a decision and rationale |
 | `/server` | Start/check the local web/API server |
 | `/world` | Show persistent project/task/action world summary |
 | `/tasks` | Show persistent agent tasks |
@@ -193,6 +200,30 @@ Embedding model (`all-MiniLM-L6-v2`, ~22MB) runs fully offline.
 
 ---
 
+## LifeOS-inspired personal layer
+
+Jarvis now has a lightweight personal operating-system layer inspired by LifeOS/PAI concepts: TELOS, identity, preferences, ideal states, daily notes, weekly reviews, decisions, and learnings. It stays filesystem-first and Markdown-native instead of adding a heavy database.
+
+Default location:
+
+```bash
+~/.jarvis-unified/life
+```
+
+Useful commands:
+
+```bash
+/life
+/telos
+/ideal Build a calmer agent workflow
+/daily
+/weekly
+/learn Tool results should be summarized before hitting the model
+/decision Keep the main agent in Node and add Rust helpers only where useful
+```
+
+Jarvis injects a compressed Life context into non-small-talk agent runs and exposes guarded tools for creating Life notes. Secret values are rejected; store only metadata such as "OpenRouter key exists in .env".
+
 ## OpenClaw integration
 
 OpenClaw uses Jarvis as its LLM backend. Start the server, run `openclaw`.
@@ -226,6 +257,7 @@ core/
   mcp-loader.js  — .mcp.json metadata reader, env values redacted
   models.js      — model chain, key rotation, Ollama client
   model-router.js — scored prompt routing and cloud/local fallback queues
+  life.js        — LifeOS-inspired Markdown layer: TELOS, ideal states, daily/weekly reviews, learnings, decisions
   memory.js      — structured memory: history, preferences, facts, commands, secret metadata
   policy.js      — permission modes and command/tool risk classifier
   project.js     — startup project scanner and verify-command inference
