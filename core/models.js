@@ -58,13 +58,15 @@ export function keyStatus() {
 export const CLOUD_MODELS = [
   { id: "poolside/laguna-m.1:free",               name: "Laguna M.1",       emoji: "💻", role: "coding",    priority: 100 },
   { id: "qwen/qwen3-coder:free",                  name: "Qwen3 Coder",      emoji: "🐉", role: "coding",    priority: 90 },
-  { id: "openai/gpt-oss-120b:free",               name: "GPT-OSS 120B",     emoji: "🔥", role: "reasoning", priority: 100 },
-  { id: "nvidia/nemotron-3-super-120b-a12b:free", name: "Nemotron Super",   emoji: "🧠", role: "reasoning", priority: 90 },
-  { id: "arcee-ai/trinity-large-thinking:free",   name: "Trinity Thinking", emoji: "💭", role: "thinking",  priority: 100 },
-  { id: "deepseek/deepseek-v4-flash:free",        name: "DeepSeek Flash",   emoji: "⚡", role: "fast",      priority: 100 },
-  { id: "google/gemma-4-31b-it:free",             name: "Gemma 4 31B",      emoji: "✨", role: "general",   priority: 90 },
+  { id: "openai/gpt-oss-120b:free",               name: "GPT-OSS 120B",     emoji: "🔥", role: "reasoning", roles: ["reasoning", "thinking"], priority: 100 },
+  { id: "nvidia/nemotron-3-super-120b-a12b:free", name: "Nemotron Super",   emoji: "🧠", role: "reasoning", roles: ["reasoning", "thinking"], priority: 95 },
+  { id: "google/gemma-4-31b-it:free",             name: "Gemma 4 31B",      emoji: "✨", role: "general",   roles: ["general", "fast"], priority: 90 },
   { id: "meta-llama/llama-3.3-70b-instruct:free", name: "Llama 3.3 70B",    emoji: "🦙", role: "general",   priority: 80 },
 ];
+
+// Removed stale :free slugs after live validation returned 404:
+// - arcee-ai/trinity-large-thinking:free
+// - deepseek/deepseek-v4-flash:free
 
 export const LOCAL_MODELS = getLocalModelPlan().safe.map((model) => ({
   id: model.id,
@@ -105,6 +107,7 @@ export function routeInfo(prompt) {
       id: model.id,
       name: model.name,
       role: model.role,
+      roles: model.roles,
       local: !!model.local,
       sizeGb: model.sizeGb,
     })),

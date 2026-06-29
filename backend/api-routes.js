@@ -9,6 +9,7 @@ import { listTasks, createTask, updateTask } from "../core/tasks.js";
 import { listMcpServers } from "../core/mcp-loader.js";
 import { browserSnapshot } from "../core/browser.js";
 import { lifeSummary, getLifeRoot, formatLifeContext, readLifeFile, appendLifeEntry, createIdealState, createDailyNote, createWeeklyReview } from "../core/life.js";
+import { validateOpenRouterKeys, validateCloudModels } from "../core/openrouter-health.js";
 
 export function registerApiRoutes(app) {
   app.post("/api/search", async (req, res) => {
@@ -144,6 +145,13 @@ export function registerApiRoutes(app) {
       modelCount: MODEL_CHAIN.length,
       route: routeInfo(prompt),
       local: await localModelStatus(),
+    });
+  });
+
+  app.post("/api/keys/validate", async (req, res) => {
+    res.json({
+      keys: await validateOpenRouterKeys(req.body || {}),
+      models: await validateCloudModels(req.body || {}),
     });
   });
 

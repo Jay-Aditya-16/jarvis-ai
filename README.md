@@ -79,6 +79,7 @@ node claw.js
 | `/models` | Show full model chain |
 | `/route <prompt>` | Explain auto-model routing and fallback order |
 | `/local` | Show M1-safe Ollama fallback plan and installed local models |
+| `/keys` | Validate OpenRouter key auth, a known-good chat model, and active cloud model slugs |
 | `/mode` | Show or set permissions: `read-only`, `ask-before-write`, `full-agent`, `dangerous-confirm` |
 | `/project` | Startup scan: package manager, scripts, env metadata, git state, ports, verification commands |
 | `/life` | Show LifeOS root, TELOS files, zones, and recent notes |
@@ -132,16 +133,14 @@ You > https://docs.example.com — summarize this
 
 | # | Model | Routing | Source |
 |---|---|---|---|
-| 1 | 🔥 GPT-OSS 120B | reasoning / default | OpenRouter free |
-| 2 | 🧠 Nemotron Super 120B | reasoning | OpenRouter free |
-| 3 | 💻 Laguna M.1 | coding | OpenRouter free |
-| 4 | 💭 Trinity Thinking | math / logic | OpenRouter free |
-| 5 | ✨ Gemma 4 31B | general | OpenRouter free |
-| 6 | 🐉 Qwen3 Coder | coding | OpenRouter free |
-| 7 | ⚡ DeepSeek V4 Flash | fast | OpenRouter free |
-| 8 | 🦙 Llama 3.3 70B | general | OpenRouter free |
-| 9 | 🏠 Qwen2.5 3B | local fallback | Ollama |
-| 10 | 🏠 Llama3.2 3B | last resort | Ollama |
+| 1 | 💻 Laguna M.1 | coding | OpenRouter free |
+| 2 | 🔥 GPT-OSS 120B | reasoning / thinking | OpenRouter free |
+| 3 | 🧠 Nemotron Super 120B | reasoning / thinking | OpenRouter free |
+| 4 | ✨ Gemma 4 31B | general / fast | OpenRouter free |
+| 5 | 🐉 Qwen3 Coder | coding | OpenRouter free |
+| 6 | 🦙 Llama 3.3 70B | general | OpenRouter free |
+| 7 | 🏠 Qwen2.5 3B | local fallback | Ollama |
+| 8 | 🏠 Llama3.2 3B | last resort | Ollama |
 
 Auto-fallback on 429/rate-limit. Local models need [Ollama](https://ollama.ai) installed.
 
@@ -257,6 +256,7 @@ core/
   mcp-loader.js  — .mcp.json metadata reader, env values redacted
   models.js      — model chain, key rotation, Ollama client
   model-router.js — scored prompt routing and cloud/local fallback queues
+  openrouter-health.js — OpenRouter key and cloud model validation helpers
   life.js        — LifeOS-inspired Markdown layer: TELOS, ideal states, daily/weekly reviews, learnings, decisions
   memory.js      — structured memory: history, preferences, facts, commands, secret metadata
   policy.js      — permission modes and command/tool risk classifier

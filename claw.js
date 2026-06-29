@@ -25,6 +25,7 @@ import { listMcpServers }                                                       
 import { browserSnapshot }                                                        from "./core/browser.js";
 import { getSmallTalkReply, wantsLocalPreference, wantsCloudPreference }           from "./core/input-shortcuts.js";
 import { ensureLifeOS, lifeSummary, formatLifeSummary, formatLifeContext, readLifeFile, appendLifeEntry, createIdealState, createDailyNote, createWeeklyReview } from "./core/life.js";
+import { validateOpenRouterKeys, validateCloudModels }                             from "./core/openrouter-health.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -80,6 +81,10 @@ function printHeader(skillCount, serverStatus) {
 
 function stripAnsi(str) {
   return str.replace(/\x1B\[[0-9;]*m/g, "");
+}
+
+function modelOrigin(model) {
+  return model?.local ? "local" : "cloud";
 }
 
 // ── Tools ─────────────────────────────────────────────────────────────────────
@@ -865,7 +870,7 @@ async function agent(userInput, activeModel) {
   // Show which model will handle this
   process.stdout.write(
     `\n  ${preferred.emoji} ${chalk.cyan(preferred.name)}` +
-    chalk.dim("  thinking…") + "\n"
+    chalk.dim(` (${modelOrigin(preferred)})  thinking...`) + "\n"
   );
 
   let loops = 0, savedReply = "", toolCalls = 0;
@@ -889,7 +894,7 @@ async function agent(userInput, activeModel) {
 
     // Show fallback model if different
     if (model.id !== preferred.id) {
-      process.stdout.write(chalk.dim(`  ⟳ fallback → ${model.emoji} ${model.name}\n`));
+      process.stdout.write(chalk.dim(`  ⟳ fallback → ${model.emoji} ${model.name} (${modelOrigin(model)})\n`));
     }
 
     // ── Function calling path ─────────────────────────────────────────────────
@@ -992,6 +997,7 @@ function printHelp() {
     row("/models",   "Show model chain and routing") + "\n" +
     row("/route",    "Explain model routing for a prompt") + "\n" +
     row("/local",    "Show M1-safe local Ollama fallback plan") + "\n" +
+    row("/keys",     "Validate OpenRouter keys and active cloud models") + "\n" +
     row("/clear",    "Clear conversation history") + "\n" +
     row("/history",  "Show turn count and memory path") + "\n" +
     row("/status",   "Check server, mode, and key status") + "\n" +
@@ -1099,6 +1105,16 @@ async function main() {
 
     if (input === "/local") {
       console.log("\n" + chalk.cyan(JSON.stringify(await localModelStatus(), null, 2)) + "\n");
+      return true;
+    }
+
+    if (input === "/keys") {
+      console.log(chalk.dim("\n  validating OpenRouter keys and cloud models...\n"));
+      const [keys, models] = await Promise.all([
+        validateOpenRouterKeys(),
+        validateCloudModels(),
+      ]);
+      console.log(chalk.cyan(JSON.stringify({ keys, models }, null, 2)) + "\n");
       return true;
     }
 

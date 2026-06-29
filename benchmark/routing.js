@@ -7,13 +7,15 @@ export function runRoutingBenchmark() {
 
   for (const { prompt, expected } of ROUTING_CASES) {
     const chosen = chooseModel(prompt);
-    const pass   = chosen.role === expected;
+    const roles = new Set([chosen.role, ...(chosen.roles || [])]);
+    const pass   = roles.has(expected);
     if (pass) correct++;
 
     results.push({
       prompt:   prompt.slice(0, 60),
       expected,
       got:      chosen.role,
+      roles:    [...roles],
       model:    chosen.name,
       pass,
     });

@@ -38,10 +38,11 @@ export function runAgentBenchmark() {
     const checks = [];
 
     if (test.expectedFirstRole) {
+      const firstRoles = new Set([first?.role, ...(first?.roles || [])].filter(Boolean));
       checks.push({
         name: "first-role",
-        pass: first?.role === test.expectedFirstRole,
-        got: first?.role,
+        pass: firstRoles.has(test.expectedFirstRole),
+        got: [...firstRoles],
         expected: test.expectedFirstRole,
       });
     }
@@ -76,8 +77,8 @@ export function runAgentBenchmark() {
     return {
       label: test.label,
       prompt: test.prompt,
-      first: first ? { id: first.id, role: first.role, local: !!first.local } : null,
-      queue: queue.map((model) => ({ id: model.id, role: model.role, local: !!model.local, sizeGb: model.sizeGb })),
+      first: first ? { id: first.id, role: first.role, roles: first.roles, local: !!first.local } : null,
+      queue: queue.map((model) => ({ id: model.id, role: model.role, roles: model.roles, local: !!model.local, sizeGb: model.sizeGb })),
       checks,
       pass: checks.every((check) => check.pass),
     };

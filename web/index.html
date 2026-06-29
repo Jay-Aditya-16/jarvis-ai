@@ -174,10 +174,8 @@
         <span class="model-chip" data-role="reasoning">🔥 GPT-OSS 120B</span>
         <span class="model-chip" data-role="reasoning">🧠 Nemotron Super</span>
         <span class="model-chip" data-role="coding">💻 Laguna M.1</span>
-        <span class="model-chip" data-role="thinking">💭 Trinity Thinking</span>
         <span class="model-chip" data-role="general">✨ Gemma 4 31B</span>
         <span class="model-chip" data-role="coding">🐉 Qwen3 Coder</span>
-        <span class="model-chip" data-role="fast">⚡ DeepSeek Flash</span>
         <span class="model-chip" data-role="general">🦙 Llama 3.3 70B</span>
         <button id="clear-btn" style="margin-left:auto">clear history</button>
       </div>
@@ -188,8 +186,8 @@
           I route your prompt to the best free model automatically:<br>
           • <strong>Coding</strong> → Laguna M.1 / Qwen3 Coder<br>
           • <strong>Reasoning</strong> → GPT-OSS 120B / Nemotron<br>
-          • <strong>Math/logic</strong> → Trinity Thinking<br>
-          • <strong>General</strong> → Gemma 4 / Llama 3.3<br><br>
+          • <strong>Math/logic</strong> → GPT-OSS / Nemotron<br>
+          • <strong>General/fast</strong> → Gemma 4 / Llama 3.3<br><br>
           Web search auto-triggers on "search / find / latest". Ask anything.</div>
           <div class="meta">Jarvis</div>
         </div>
@@ -208,6 +206,7 @@
         <button data-panel="project">Project</button>
         <button data-panel="tasks">Tasks</button>
         <button data-panel="models">Models</button>
+        <button data-panel="keys">Keys</button>
         <button data-panel="logs">Logs</button>
         <button data-panel="world">World</button>
         <button data-panel="life">Life</button>
@@ -233,6 +232,7 @@ const PANEL_ENDPOINTS = {
   status: '/api/status',
   project: '/api/project',
   models: '/api/models',
+  keys: '/api/keys/validate',
   logs: '/api/logs?limit=40',
   world: '/api/world',
   life: '/api/life',
@@ -270,7 +270,10 @@ async function loadPanel(panel = activePanel) {
       });
       return;
     }
-    const data = await (await fetch(PANEL_ENDPOINTS[panel])).json();
+    const endpoint = PANEL_ENDPOINTS[panel];
+    const data = panel === 'keys'
+      ? await (await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).json()
+      : await (await fetch(endpoint)).json();
     renderJson(panel, data);
   } catch (e) {
     renderJson(panel, { error: e.message });

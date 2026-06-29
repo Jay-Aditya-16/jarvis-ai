@@ -42,6 +42,10 @@ export const ROUTING_CASES = [
   { prompt: "tell me about the history of the internet",       expected: "general" },
   { prompt: "what is the capital of France",                   expected: "general" },
   { prompt: "give me some ideas for a startup name",           expected: "general" },
+
+  // explanatory technical questions should not route to coding just because they mention server/API/MCP
+  { prompt: "what is mcp server",                              expected: "reasoning" },
+  { prompt: "explain what an API gateway does",                 expected: "reasoning" },
 ];
 
 export const AGENT_CASES = [

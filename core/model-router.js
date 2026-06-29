@@ -3,11 +3,12 @@ import { getLocalModelPlan } from "./local-ai.js";
 const ROLE_ORDER = ["coding", "reasoning", "thinking", "fast", "general"];
 
 export const ROUTE_RULES = [
-  { role: "coding", weight: 4, pattern: /\b(code|debug|fix|bug|build|implement|refactor|optimi[sz]e|function|class|api|backend|frontend|docker|git|sql|python|javascript|typescript|node|rust|golang|bash|script|error|syntax|deploy|npm|pip|import|repo|repository|tests?|lint|server)\b/i },
-  { role: "reasoning", weight: 3, pattern: /\b(analy[sz]e|reason|architecture|design|strategy|plan|compare|evaluate|system|workflow|explain|understand|trade-?off|performance|security|review|decision|scalability)\b/i },
+  { role: "coding", weight: 4, pattern: /\b(code|debug|fix|bug|build|implement|refactor|optimi[sz]e|function|class|backend|frontend|docker|git|sql|python|javascript|typescript|node|rust|golang|bash|script|error|syntax|deploy|npm|pip|import|repo|repository|tests?|lint)\b/i },
+  { role: "coding", weight: 2, pattern: /\b(server|mcp|api)\b/i },
+  { role: "reasoning", weight: 3, pattern: /\b(analy[sz]e|reason|architecture|design|strategy|plan|compare|evaluate|system|workflow|explain|understand|trade-?off|performance|security|review|decision|scalability|protocol)\b/i },
   { role: "thinking", weight: 4, pattern: /\b(math|proof|logic|theorem|calculate|derive|step by step|think through|complex problem|probability|algorithm|complexity)\b/i },
   { role: "fast", weight: 2, pattern: /\b(quick|brief|short|simple|summari[sz]e|rewrite|format|translate|small|tiny)\b/i },
-  { role: "general", weight: 1, pattern: /\b(what|who|when|where|why|ideas?|history|capital|weather|tell me|explain)\b/i },
+  { role: "general", weight: 1, pattern: /\b(what|who|when|where|why|ideas?|history|capital|weather|tell me|explain|define|describe)\b/i },
 ];
 
 function uniqById(models) {
@@ -26,12 +27,27 @@ export function classifyPrompt(prompt = "") {
     if (matches) scores[rule.role] += rule.weight + Math.min(2, matches.length - 1);
   }
 
-  const text = String(prompt).toLowerCase();
+  const text = String(prompt).toLowerCase().trim();
+  const explanatory = /^(what|what's|whats|who|when|where|why|how does|how do|tell me about|explain|define|describe)\b/.test(text);
+  const actionCoding = /\b(fix|debug|implement|build|write|refactor|edit|change|create|generate|run|test|deploy|install|setup|set up)\b/.test(text);
+
   if (/\b(system design|architecture review|design review|trade-?off|scalability)\b/.test(text)) {
     scores.reasoning += 3;
   }
-  if (/\b(fix|debug|implement|build|write|refactor)\b/.test(text)) {
+  if (actionCoding) {
     scores.coding += 2;
+  }
+  if (explanatory && !actionCoding) {
+    if (/\b(import|module|dependency|dependencies|package|python|javascript|typescript|node|npm|pip|syntax|stack trace)\b/.test(text)) {
+      scores.coding += 3;
+    } else {
+      scores.coding = Math.max(0, scores.coding - 3);
+      if (/\b(mcp|api|server|protocol|framework|database|auth|backend|frontend|architecture|system|rest|graphql|migrate|migration)\b/.test(text)) {
+        scores.reasoning += 4;
+      } else {
+        scores.general += 3;
+      }
+    }
   }
 
   const ranked = Object.entries(scores).sort((a, b) => b[1] - a[1]);
