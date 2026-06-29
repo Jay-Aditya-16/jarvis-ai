@@ -90,7 +90,7 @@ export function buildModelQueue(prompt, options = {}) {
 export function modelAttempts(model) {
   if (model.local) return 1;
   if (!KEYS.length) return 0;
-  return Math.max(1, Math.min(KEYS.length, Number(process.env.JARVIS_KEY_ATTEMPTS || 2)));
+  return Math.max(1, Math.min(KEYS.length, Number(process.env.JARVIS_KEY_ATTEMPTS || KEYS.length)));
 }
 
 export function isCloudNetworkError(err) {

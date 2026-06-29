@@ -157,7 +157,7 @@ Useful knobs:
 ```bash
 JARVIS_PREFER_LOCAL=1
 JARVIS_LOCAL_ONLY=1
-JARVIS_KEY_ATTEMPTS=2
+JARVIS_KEY_ATTEMPTS=5       # default: all configured cloud keys
 JARVIS_LOCAL_MAX_MODEL_GB=3.6
 ```
 
