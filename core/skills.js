@@ -11,7 +11,7 @@ export const SKILLS_DIR = path.join(__dirname, "..", "skills");
 export const SKILL_TRIGGERS = {
   // Custom
   "drones.md":              /\b(drone|uav|quadcopter|telemetry|mavlink|ardupilot|px4|fpv|swarm|flight|autopilot|esc|lora)\b/i,
-  "security.md":            /\b(security|exploit|vulnerabilit|pentest|firewall|encrypt|jwt|oauth|xss|sql.inject|csrf|ssrf)\b/i,
+  "security.md":            /\b(security|exploit|vulnerabilit|pentest|firewall|encrypt|jwt|oauth|xss|sql.inject|csrf|ssrf|shell|privilege.escal|privesc|escalate.privilege)\b/i,
   "cai-cybersecurity.md":   /\b(ctf|hackthebox|htb|pentest|recon|reconnaissance|nmap|gobuster|privilege.escal|privesc|lateral.move|kill.chain|bug.bounty|cve|payload|reverse.shell|metasploit|sqlmap|bloodhound|mimikatz|linpeas|ghidra|pwn|rop.chain|heap.exploit|format.string|steganograph|volatility|wireshark|exfiltrat|command.and.control|c2\b|c&c)\b/i,
   "startup.md":             /\b(startup|mvp|product.market|monetize|saas|investor|roadmap|go.to.market|churn|arr|mrr)\b/i,
   "robotics.md":            /\b(robot|ros2?|servo|actuator|embedded|esp32|arduino|raspberry.?pi|iot|firmware|stm32)\b/i,
@@ -37,7 +37,7 @@ export const SKILL_TRIGGERS = {
   // Vercel official
   "vercel-react-best-practices.md":     /\b(react|jsx|tsx|usestate|useeffect|usememo|next\.?js|nextjs|react.hook)\b/i,
   "vercel-react-native-skills.md":      /\b(react.native|expo|mobile.app|rn\b|ios.app|android.app|metro.bundler)\b/i,
-  "vercel-deploy-to-vercel.md":         /\b(vercel.deploy|deploy.vercel|vercel.cli|vc.deploy|vercel.json|vercel.env)\b/i,
+  "vercel-deploy-to-vercel.md":         /\b(vercel.deploy|deploy.vercel|deploy.*vercel|vercel.*deploy|vercel.cli|vc.deploy|vercel.json|vercel.env|vercel.*environment|environment.variables.*vercel)\b/i,
   "vercel-web-design-guidelines.md":    /\b(web.design|responsive.design|accessibility|a11y|wcag|aria|semantic.html)\b/i,
   "vercel-vercel-optimize.md":          /\b(core.web.vitals|lcp|fid|cls|lighthouse.score|performance.audit|bundle.size)\b/i,
   "vercel-react-view-transitions.md":   /\b(view.transition|page.transition|framer.motion|animate.presence|layout.anim)\b/i,

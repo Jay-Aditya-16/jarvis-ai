@@ -12,7 +12,9 @@
     "claw": "node claw.js",
     "server": "node server.js",
     "mcp": "node mcp.js",
-    "benchmark": "node benchmark/run.js"
+    "benchmark": "node benchmark/run.js",
+    "benchmark:validate": "node benchmark/validate.js",
+    "benchmark:matlab": "${MATLAB_BIN:-/Applications/MATLAB_R2025b.app/bin/matlab} -batch \"run('benchmark/analyze.m')\""
   },
   "keywords": [
     "ai",

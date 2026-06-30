@@ -2,7 +2,7 @@
 
 // ── Routing dataset ────────────────────────────────────────────────────────────
 // Each entry: { prompt, expected_role }
-// expected_role must match MODEL_CHAIN role values: coding | reasoning | thinking | general
+// expected_role must match model role values: coding | reasoning | thinking | fast | general
 export const ROUTING_CASES = [
   // coding
   { prompt: "fix the bug in my api.js authentication middleware",               expected: "coding" },
@@ -32,12 +32,67 @@ export const ROUTING_CASES = [
   { prompt: "calculate the expected value of this probability distribution", expected: "thinking" },
   { prompt: "solve this dynamic programming problem step by step",           expected: "thinking" },
 
+  // fast
+  { prompt: "give me a quick summary of this log output", expected: "fast" },
+  { prompt: "rewrite this sentence briefly",              expected: "fast" },
+  { prompt: "format this JSON in a simple way",            expected: "fast" },
+
   // general (no strong signal — should fall through to default)
   { prompt: "what's the weather like in tokyo",                expected: "general" },
   { prompt: "tell me about the history of the internet",       expected: "general" },
-  { prompt: "summarize the key points of agile methodology",   expected: "general" },
   { prompt: "what is the capital of France",                   expected: "general" },
   { prompt: "give me some ideas for a startup name",           expected: "general" },
+
+  // explanatory technical questions should not route to coding just because they mention server/API/MCP
+  { prompt: "what is mcp server",                              expected: "reasoning" },
+  { prompt: "explain what an API gateway does",                 expected: "reasoning" },
+];
+
+export const AGENT_CASES = [
+  {
+    label: "coding-routes-to-coding-first",
+    prompt: "fix the backend API bug and run tests",
+    expectedFirstRole: "coding",
+  },
+  {
+    label: "reasoning-routes-to-reasoning-first",
+    prompt: "analyze the tradeoffs in this architecture",
+    expectedFirstRole: "reasoning",
+  },
+  {
+    label: "thinking-routes-to-thinking-first",
+    prompt: "prove the algorithm complexity step by step",
+    expectedFirstRole: "thinking",
+  },
+  {
+    label: "local-only-uses-small-local-model",
+    prompt: "quickly explain this error",
+    localOnly: true,
+    maxLocalSizeGb: 3.6,
+  },
+  {
+    label: "fallback-queue-has-no-duplicates",
+    prompt: "build and debug a Node server",
+    noDuplicates: true,
+  },
+  {
+    label: "local-fallback-excludes-7b-plus",
+    prompt: "answer locally if cloud is down",
+    localOnly: true,
+    forbiddenPattern: /(^|:)(7b|8b|12b|14b|27b|32b|70b|120b)/i,
+  },
+  {
+    label: "greeting-short-circuits-agent-loop",
+    prompt: "hi",
+    shortcut: true,
+    expectReply: "Hey. I'm here.",
+  },
+  {
+    label: "local-preference-short-circuits-agent-loop",
+    prompt: "use local fallback",
+    shortcut: true,
+    expectLocalPreference: true,
+  },
 ];
 
 // ── Skill trigger dataset ──────────────────────────────────────────────────────

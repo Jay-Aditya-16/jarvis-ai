@@ -22,7 +22,12 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 15px; }
 
-  #app { display: flex; flex-direction: column; height: 100vh; max-width: 860px; margin: 0 auto; }
+  #app { display: flex; flex-direction: column; height: 100vh; max-width: 1220px; margin: 0 auto; }
+  #main {
+    flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 340px;
+    border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+  }
+  #chat-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 
   header {
     display: flex; align-items: center; justify-content: space-between;
@@ -123,6 +128,34 @@
     transition: all .2s;
   }
   #clear-btn:hover { border-color: #ef4444; color: #ef4444; }
+  #dashboard {
+    border-left: 1px solid var(--border); background: #101010; min-height: 0;
+    display: flex; flex-direction: column;
+  }
+  .dash-tabs {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+    padding: 10px; border-bottom: 1px solid var(--border);
+  }
+  .dash-tabs button, .task-form button {
+    min-height: 32px; border: 1px solid var(--border); background: var(--surface);
+    color: var(--muted); border-radius: 6px; cursor: pointer; font: inherit; font-size: 12px;
+  }
+  .dash-tabs button.active { border-color: var(--accent); color: var(--accent); }
+  #dash-content { padding: 12px; overflow: auto; min-height: 0; flex: 1; }
+  .dash-title { font-size: 12px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; letter-spacing: 1px; }
+  .dash-pre {
+    white-space: pre-wrap; word-break: break-word; font-family: 'Fira Code', monospace;
+    font-size: 12px; line-height: 1.5; color: #d7d7d7;
+  }
+  .task-form { display: flex; gap: 6px; margin-bottom: 10px; }
+  .task-form input {
+    flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; padding: 8px; font: inherit; font-size: 12px;
+  }
+  @media (max-width: 920px) {
+    #main { grid-template-columns: 1fr; }
+    #dashboard { display: none; }
+  }
 </style>
 </head>
 <body>
@@ -135,36 +168,53 @@
     <span id="status-badge">connecting…</span>
   </header>
 
-  <div id="model-bar">
-    <span class="model-chip" data-role="reasoning">🔥 GPT-OSS 120B</span>
-    <span class="model-chip" data-role="reasoning">🧠 Nemotron Super</span>
-    <span class="model-chip" data-role="coding">💻 Laguna M.1</span>
-    <span class="model-chip" data-role="thinking">💭 Trinity Thinking</span>
-    <span class="model-chip" data-role="general">✨ Gemma 4 31B</span>
-    <span class="model-chip" data-role="coding">🐉 Qwen3 Coder</span>
-    <span class="model-chip" data-role="fast">⚡ DeepSeek Flash</span>
-    <span class="model-chip" data-role="general">🦙 Llama 3.3 70B</span>
-    <button id="clear-btn" style="margin-left:auto">clear history</button>
-  </div>
+  <div id="main">
+    <section id="chat-pane">
+      <div id="model-bar">
+        <span class="model-chip" data-role="reasoning">🔥 GPT-OSS 120B</span>
+        <span class="model-chip" data-role="reasoning">🧠 Nemotron Super</span>
+        <span class="model-chip" data-role="coding">💻 Laguna M.1</span>
+        <span class="model-chip" data-role="general">✨ Gemma 4 31B</span>
+        <span class="model-chip" data-role="coding">🐉 Qwen3 Coder</span>
+        <span class="model-chip" data-role="general">🦙 Llama 3.3 70B</span>
+        <button id="clear-btn" style="margin-left:auto">clear history</button>
+      </div>
 
-  <div id="messages">
-    <div class="msg ai">
-      <div class="bubble">Hey. I'm Jarvis — your terminal AI agent.<br><br>
-      I route your prompt to the best free model automatically:<br>
-      • <strong>Coding</strong> → Laguna M.1 / Qwen3 Coder<br>
-      • <strong>Reasoning</strong> → GPT-OSS 120B / Nemotron<br>
-      • <strong>Math/logic</strong> → Trinity Thinking<br>
-      • <strong>General</strong> → Gemma 4 / Llama 3.3<br><br>
-      Web search auto-triggers on "search / find / latest". Ask anything.</div>
-      <div class="meta">Jarvis</div>
-    </div>
-  </div>
+      <div id="messages">
+        <div class="msg ai">
+          <div class="bubble">Hey. I'm Jarvis — your terminal AI agent.<br><br>
+          I route your prompt to the best free model automatically:<br>
+          • <strong>Coding</strong> → Laguna M.1 / Qwen3 Coder<br>
+          • <strong>Reasoning</strong> → GPT-OSS 120B / Nemotron<br>
+          • <strong>Math/logic</strong> → GPT-OSS / Nemotron<br>
+          • <strong>General/fast</strong> → Gemma 4 / Llama 3.3<br><br>
+          Web search auto-triggers on "search / find / latest". Ask anything.</div>
+          <div class="meta">Jarvis</div>
+        </div>
+      </div>
 
-  <div id="input-area">
-    <textarea id="input" placeholder="Ask anything… (Enter to send, Shift+Enter for newline)" rows="1"></textarea>
-    <button id="send">↑</button>
+      <div id="input-area">
+        <textarea id="input" placeholder="Ask anything… (Enter to send, Shift+Enter for newline)" rows="1"></textarea>
+        <button id="send">↑</button>
+      </div>
+      <div class="hint">Connected via WebSocket · Models via OpenRouter (free tier)</div>
+    </section>
+
+    <aside id="dashboard">
+      <div class="dash-tabs">
+        <button class="active" data-panel="status">Status</button>
+        <button data-panel="project">Project</button>
+        <button data-panel="tasks">Tasks</button>
+        <button data-panel="models">Models</button>
+        <button data-panel="keys">Keys</button>
+        <button data-panel="logs">Logs</button>
+        <button data-panel="world">World</button>
+        <button data-panel="life">Life</button>
+        <button data-panel="mcp">MCP</button>
+      </div>
+      <div id="dash-content"></div>
+    </aside>
   </div>
-  <div class="hint">Connected via WebSocket · Models via OpenRouter (free tier)</div>
 </div>
 
 <script>
@@ -173,8 +223,62 @@ const messages = document.getElementById('messages');
 const input = document.getElementById('input');
 const sendBtn = document.getElementById('send');
 const badge = document.getElementById('status-badge');
+const dashContent = document.getElementById('dash-content');
+const dashTabs = document.querySelectorAll('.dash-tabs button');
 
-let ws, currentBubble = null, currentMsgDiv = null, busy = false;
+let ws, currentBubble = null, currentMsgDiv = null, busy = false, activePanel = 'status';
+
+const PANEL_ENDPOINTS = {
+  status: '/api/status',
+  project: '/api/project',
+  models: '/api/models',
+  keys: '/api/keys/validate',
+  logs: '/api/logs?limit=40',
+  world: '/api/world',
+  life: '/api/life',
+  mcp: '/api/mcp',
+};
+
+function renderJson(title, value) {
+  dashContent.innerHTML = `<div class="dash-title">${title}</div><pre class="dash-pre">${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+}
+
+async function loadPanel(panel = activePanel) {
+  activePanel = panel;
+  dashTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.panel === panel));
+  dashContent.innerHTML = '<div class="dash-title">Loading</div>';
+  try {
+    if (panel === 'tasks') {
+      const data = await (await fetch('/api/tasks')).json();
+      dashContent.innerHTML = `
+        <div class="dash-title">Tasks</div>
+        <form class="task-form" id="task-form">
+          <input id="task-title" placeholder="New task">
+          <button type="submit">Add</button>
+        </form>
+        <pre class="dash-pre">${escapeHtml(JSON.stringify(data.tasks || [], null, 2))}</pre>`;
+      document.getElementById('task-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const title = document.getElementById('task-title').value.trim();
+        if (!title) return;
+        await fetch('/api/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title }),
+        });
+        loadPanel('tasks');
+      });
+      return;
+    }
+    const endpoint = PANEL_ENDPOINTS[panel];
+    const data = panel === 'keys'
+      ? await (await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).json()
+      : await (await fetch(endpoint)).json();
+    renderJson(panel, data);
+  } catch (e) {
+    renderJson(panel, { error: e.message });
+  }
+}
 
 function connect() {
   ws = new WebSocket(WS_URL);
@@ -320,9 +424,14 @@ document.getElementById('clear-btn').addEventListener('click', async () => {
   await fetch('/api/memory', { method: 'DELETE' });
   messages.innerHTML = '';
   addMsg('ai', 'History cleared.');
+  loadPanel(activePanel);
 });
 
+dashTabs.forEach(btn => btn.addEventListener('click', () => loadPanel(btn.dataset.panel)));
+setInterval(() => loadPanel(activePanel), 15000);
+
 connect();
+loadPanel('status');
 </script>
 </body>
 </html>

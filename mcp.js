@@ -1,11 +1,4 @@
 #!/usr/bin/env node
-import path            from "path";
-import { fileURLToPath } from "url";
-import dotenv          from "dotenv";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, ".env") });
-
 import { McpServer }          from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z }                  from "zod";
@@ -13,7 +6,7 @@ import { z }                  from "zod";
 import { webSearch, scrapeUrl }                          from "./core/web.js";
 import { retrieve, ingest, formatContext }               from "./core/rag.js";
 import { loadHistory, saveHistory }                      from "./core/memory.js";
-import { getClient, markKeyExhausted, MODEL_CHAIN, chooseModel } from "./core/models.js";
+import { getClientForModel, markKeyExhausted, buildModelQueue, modelAttempts, isCloudNetworkError } from "./core/models.js";
 import { detectSkills }                                  from "./core/skills.js";
 
 const server = new McpServer({ name: "jarvis", version: "1.0.0" });
@@ -59,33 +52,37 @@ server.tool("jarvis_chat", "Ask Jarvis with full model routing, RAG, and web sea
   { message: z.string().describe("Your message") },
   async ({ message }) => {
     const history    = loadHistory();
-    const preferred  = chooseModel(message);
     const skills     = detectSkills(message);
     const skillBlock = skills.map(s => s.content).join("\n\n---\n\n");
     const system     = skillBlock ? `${BASE_SYSTEM}\n\n=== ACTIVE SKILLS ===\n${skillBlock}` : BASE_SYSTEM;
     const ragChunks  = await retrieve(message).catch(() => []);
     const ragCtx     = ragChunks.length ? `[RAG CONTEXT]\n\n${formatContext(ragChunks)}\n\n[END RAG CONTEXT]` : "";
     const userMsg    = [message, ragCtx].filter(Boolean).join("\n\n");
-    const queue      = [preferred, ...MODEL_CHAIN.filter(m => m.id !== preferred.id)];
+    const queue      = buildModelQueue(message);
 
+    let cloudUnavailable = false;
     for (const model of queue) {
-      try {
-        const client   = getClient();
-        const response = await client.chat.completions.create({
-          model:       model.id,
-          messages:    [{ role: "system", content: system }, ...history.slice(-20), { role: "user", content: userMsg }],
-          max_tokens:  8192,
-          temperature: 0.4,
-        });
-        const reply = response.choices[0]?.message?.content ?? "";
-        history.push({ role: "user", content: message });
-        history.push({ role: "assistant", content: reply });
-        saveHistory(history);
-        return { content: [{ type: "text", text: reply }] };
-      } catch (err) {
-        const s = err?.status ?? err?.response?.status;
-        if (s === 429) { markKeyExhausted(); continue; }
-        continue;
+      if (cloudUnavailable && !model.local) continue;
+      for (let attempt = 0; attempt < modelAttempts(model); attempt++) {
+        try {
+          const client   = getClientForModel(model);
+          const response = await client.chat.completions.create({
+            model:       model.id,
+            messages:    [{ role: "system", content: system }, ...history.slice(-20), { role: "user", content: userMsg }],
+            max_tokens:  8192,
+            temperature: 0.4,
+          });
+          const reply = response.choices[0]?.message?.content ?? "";
+          history.push({ role: "user", content: message });
+          history.push({ role: "assistant", content: reply });
+          saveHistory(history);
+          return { content: [{ type: "text", text: reply }] };
+        } catch (err) {
+          const s = err?.status ?? err?.response?.status;
+          if (!model.local && s === 429) { markKeyExhausted(); continue; }
+          if (!model.local && isCloudNetworkError(err)) { cloudUnavailable = true; break; }
+          break;
+        }
       }
     }
     return { content: [{ type: "text", text: "All models unavailable" }] };

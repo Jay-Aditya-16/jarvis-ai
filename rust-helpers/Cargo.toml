@@ -1,0 +1,12 @@
+[workspace]
+members = [
+  "jarvis-indexer",
+  "jarvis-fs",
+  "jarvis-sandbox",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+authors = ["Jay-Aditya-16"]

@@ -2,6 +2,7 @@ import fs   from "fs";
 import path from "path";
 import os   from "os";
 import { fileURLToPath } from "url";
+import "./env.js";
 
 const __dirname    = path.dirname(fileURLToPath(import.meta.url));
 const LEGACY_FILE  = path.join(__dirname, "..", ".jarvis-history.json");
@@ -13,14 +14,40 @@ function ensureDir() {
   if (!fs.existsSync(MEMORY_DIR)) fs.mkdirSync(MEMORY_DIR, { recursive: true });
 }
 
+function defaultStore() {
+  return {
+    conversations: [],
+    facts: {},
+    preferences: {},
+    projectFacts: {},
+    recurringTasks: [],
+    knownCommands: {},
+    secrets: {},
+    lastUpdated: Date.now(),
+  };
+}
+
+function normalizeStore(store) {
+  return {
+    ...defaultStore(),
+    ...store,
+    facts: store?.facts || {},
+    preferences: store?.preferences || {},
+    projectFacts: store?.projectFacts || {},
+    recurringTasks: store?.recurringTasks || [],
+    knownCommands: store?.knownCommands || {},
+    secrets: store?.secrets || {},
+  };
+}
+
 function readStore() {
   try {
     if (fs.existsSync(MEMORY_FILE)) {
       const raw = JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8"));
-      if (raw.conversations) return raw;
+      if (raw.conversations) return normalizeStore(raw);
     }
   } catch {}
-  return { conversations: [], facts: {}, lastUpdated: Date.now() };
+  return defaultStore();
 }
 
 export function loadHistory() {
@@ -30,7 +57,7 @@ export function loadHistory() {
     try {
       const legacy = JSON.parse(fs.readFileSync(LEGACY_FILE, "utf8"));
       if (Array.isArray(legacy)) {
-        const store = { conversations: legacy, facts: {}, lastUpdated: Date.now() };
+        const store = normalizeStore({ conversations: legacy, lastUpdated: Date.now() });
         fs.writeFileSync(MEMORY_FILE, JSON.stringify(store, null, 2), "utf8");
         return legacy;
       }
@@ -65,3 +92,43 @@ export function historyStats(history) {
 }
 
 export function getMemoryPath() { return MEMORY_FILE; }
+
+export function getMemoryStore() {
+  ensureDir();
+  return readStore();
+}
+
+export function saveMemoryStore(store) {
+  ensureDir();
+  const next = normalizeStore(store);
+  next.lastUpdated = Date.now();
+  fs.writeFileSync(MEMORY_FILE, JSON.stringify(next, null, 2), "utf8");
+  return next;
+}
+
+export function updateMemorySection(section, value) {
+  const store = readStore();
+  if (!(section in store)) throw new Error(`Unknown memory section: ${section}`);
+  store[section] = value;
+  return saveMemoryStore(store);
+}
+
+export function rememberPreference(key, value) {
+  const store = readStore();
+  store.preferences[key] = value;
+  return saveMemoryStore(store);
+}
+
+export function rememberProjectFact(projectPath, key, value) {
+  const store = readStore();
+  store.projectFacts[projectPath] = store.projectFacts[projectPath] || {};
+  store.projectFacts[projectPath][key] = value;
+  return saveMemoryStore(store);
+}
+
+export function rememberKnownCommand(projectPath, name, command) {
+  const store = readStore();
+  store.knownCommands[projectPath] = store.knownCommands[projectPath] || {};
+  store.knownCommands[projectPath][name] = command;
+  return saveMemoryStore(store);
+}

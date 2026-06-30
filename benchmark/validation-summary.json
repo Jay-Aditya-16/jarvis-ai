@@ -1,0 +1,57 @@
+{
+  "timestamp": "2026-06-29T22:30:49.996Z",
+  "passed": true,
+  "checks": [
+    {
+      "name": "routing_accuracy",
+      "min": 0.9,
+      "actual": 1,
+      "pass": true
+    },
+    {
+      "name": "skills_f1",
+      "min": 0.7,
+      "actual": 1,
+      "pass": true
+    },
+    {
+      "name": "rag_ndcg",
+      "min": 0.5,
+      "actual": 1,
+      "pass": true
+    },
+    {
+      "name": "sentinel_accuracy",
+      "min": 0.8,
+      "actual": 1,
+      "pass": true
+    },
+    {
+      "name": "agent_accuracy",
+      "min": 1,
+      "actual": 1,
+      "pass": true
+    },
+    {
+      "name": "life_accuracy",
+      "min": 1,
+      "actual": 1,
+      "pass": true
+    }
+  ],
+  "actual": {
+    "routing_accuracy": 1,
+    "skills_f1": 1,
+    "rag_ndcg": 1,
+    "sentinel_accuracy": 1,
+    "agent_accuracy": 1,
+    "life_accuracy": 1,
+    "overall": 1
+  },
+  "matlab": {
+    "available": true,
+    "binary": "/Applications/MATLAB_R2025b.app/bin/matlab",
+    "command": "npm run benchmark:matlab",
+    "script": "benchmark/analyze.m"
+  }
+}

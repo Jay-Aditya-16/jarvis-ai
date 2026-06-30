@@ -47,12 +47,10 @@ FIRECRAWL_KEY=fc-...    # firecrawl.dev — free 500 credits/month
 ## Agent mode (claw)
 
 ```bash
-# Terminal 1
-node server.js
-
-# Terminal 2
 node claw.js
 ```
+
+`claw` now auto-checks the local web/API server and starts it when needed. Set `JARVIS_AUTO_SERVER=0` if you want to manage `node server.js` manually.
 
 `claw` uses **OpenAI function calling** — it executes commands itself, never tells you to run them.
 
@@ -79,6 +77,22 @@ node claw.js
 | `/clear` | Clear conversation history |
 | `/history` | Turn count + memory path |
 | `/models` | Show full model chain |
+| `/route <prompt>` | Explain auto-model routing and fallback order |
+| `/local` | Show M1-safe Ollama fallback plan and installed local models |
+| `/keys` | Validate OpenRouter key auth, a known-good chat model, and active cloud model slugs |
+| `/mode` | Show or set permissions: `read-only`, `ask-before-write`, `full-agent`, `dangerous-confirm` |
+| `/project` | Startup scan: package manager, scripts, env metadata, git state, ports, verification commands |
+| `/life` | Show LifeOS root, TELOS files, zones, and recent notes |
+| `/telos` | Show mission and goals from the LifeOS layer |
+| `/ideal <title>` | Create an Ideal State artifact |
+| `/daily [YYYY-MM-DD]` | Create/open a daily note |
+| `/weekly [YYYY-MM-DD]` | Create/open a weekly review |
+| `/learn <note>` | Record a reusable learning |
+| `/decision <note>` | Record a decision and rationale |
+| `/server` | Start/check the local web/API server |
+| `/world` | Show persistent project/task/action world summary |
+| `/tasks` | Show persistent agent tasks |
+| `/mcp` | Show configured MCP servers without exposing env values |
 | `/exit` | Quit |
 
 ---
@@ -102,6 +116,8 @@ You > https://docs.example.com — summarize this
 | `/search <query>` | Web search via Firecrawl |
 | `/scrape <url>` | Scrape a URL |
 | `/model` | Model chain |
+| `/route <prompt>` | Inspect routing and fallback queue |
+| `/local` | M1-safe Ollama fallback status |
 | `/skill list` | Installed skills |
 | `/skill install <name>` | Install from registry |
 | `/skill add <url>` | Fetch + scan + install |
@@ -117,18 +133,39 @@ You > https://docs.example.com — summarize this
 
 | # | Model | Routing | Source |
 |---|---|---|---|
-| 1 | 🔥 GPT-OSS 120B | reasoning / default | OpenRouter free |
-| 2 | 🧠 Nemotron Super 120B | reasoning | OpenRouter free |
-| 3 | 💻 Laguna M.1 | coding | OpenRouter free |
-| 4 | 💭 Trinity Thinking | math / logic | OpenRouter free |
-| 5 | ✨ Gemma 4 31B | general | OpenRouter free |
-| 6 | 🐉 Qwen3 Coder | coding | OpenRouter free |
-| 7 | ⚡ DeepSeek V4 Flash | fast | OpenRouter free |
-| 8 | 🦙 Llama 3.3 70B | general | OpenRouter free |
-| 9 | 🏠 Qwen2.5 3B | local fallback | Ollama |
-| 10 | 🏠 Llama3.2 3B | last resort | Ollama |
+| 1 | 💻 Laguna M.1 | coding | OpenRouter free |
+| 2 | 🔥 GPT-OSS 120B | reasoning / thinking | OpenRouter free |
+| 3 | 🧠 Nemotron Super 120B | reasoning / thinking | OpenRouter free |
+| 4 | ✨ Gemma 4 31B | general / fast | OpenRouter free |
+| 5 | 🐉 Qwen3 Coder | coding | OpenRouter free |
+| 6 | 🦙 Llama 3.3 70B | general | OpenRouter free |
+| 7 | 🏠 Qwen2.5 3B | local fallback | Ollama |
+| 8 | 🏠 Llama3.2 3B | last resort | Ollama |
 
 Auto-fallback on 429/rate-limit. Local models need [Ollama](https://ollama.ai) installed.
+
+### M1 Air 8GB local fallback
+
+Jarvis defaults to `JARVIS_LOCAL_PROFILE=m1-8gb` and only auto-routes to small local models that should stay reasonable on an 8GB Apple Silicon machine:
+
+```bash
+ollama pull qwen2.5:3b
+ollama pull phi3.5:latest
+ollama pull llama3.2:3b
+ollama pull gemma3n:e2b
+ollama pull gemma3:1b
+```
+
+The optional `gemma3:4b` fallback is excluded unless `JARVIS_LOCAL_INCLUDE_OPTIONAL=1` is set. Larger installed models, such as 7B/8B+ models, are not used in automatic fallback.
+
+Useful knobs:
+
+```bash
+JARVIS_PREFER_LOCAL=1
+JARVIS_LOCAL_ONLY=1
+JARVIS_KEY_ATTEMPTS=5       # default: all configured cloud keys
+JARVIS_LOCAL_MAX_MODEL_GB=3.6
+```
 
 ---
 
@@ -162,6 +199,30 @@ Embedding model (`all-MiniLM-L6-v2`, ~22MB) runs fully offline.
 
 ---
 
+## LifeOS-inspired personal layer
+
+Jarvis now has a lightweight personal operating-system layer inspired by LifeOS/PAI concepts: TELOS, identity, preferences, ideal states, daily notes, weekly reviews, decisions, and learnings. It stays filesystem-first and Markdown-native instead of adding a heavy database.
+
+Default location:
+
+```bash
+~/.jarvis-unified/life
+```
+
+Useful commands:
+
+```bash
+/life
+/telos
+/ideal Build a calmer agent workflow
+/daily
+/weekly
+/learn Tool results should be summarized before hitting the model
+/decision Keep the main agent in Node and add Rust helpers only where useful
+```
+
+Jarvis injects a compressed Life context into non-small-talk agent runs and exposes guarded tools for creating Life notes. Secret values are rejected; store only metadata such as "OpenRouter key exists in .env".
+
 ## OpenClaw integration
 
 OpenClaw uses Jarvis as its LLM backend. Start the server, run `openclaw`.
@@ -182,17 +243,50 @@ claw.js          — agentic CLI (function calling loop, Claude Code-style)
 ai.js            — conversational CLI
 server.js        — Express + WebSocket + OpenAI-compat API at :3000
 mcp.js           — Model Context Protocol server
+backend/
+  api-routes.js  — REST endpoints for status, memory, project, models, tasks, logs
+  openai-proxy.js — OpenAI-compatible /v1 model proxy with fallback queues
+  ws-chat.js     — browser chat WebSocket handler
 core/
+  agent-log.js   — JSONL run/tool/verification logs
+  browser.js     — optional Playwright browser snapshot bridge
+  editing.js     — safer line-based edit primitives
+  env.js         — project-root .env loading for global CLI use
+  local-ai.js    — M1/low-RAM Ollama fallback profile and installed-model checks
+  mcp-loader.js  — .mcp.json metadata reader, env values redacted
   models.js      — model chain, key rotation, Ollama client
-  memory.js      — persistent conversation history
+  model-router.js — scored prompt routing and cloud/local fallback queues
+  openrouter-health.js — OpenRouter key and cloud model validation helpers
+  life.js        — LifeOS-inspired Markdown layer: TELOS, ideal states, daily/weekly reviews, learnings, decisions
+  memory.js      — structured memory: history, preferences, facts, commands, secret metadata
+  policy.js      — permission modes and command/tool risk classifier
+  project.js     — startup project scanner and verify-command inference
+  server-lifecycle.js — local server auto-start/check helper
   skills.js      — auto skill injection, Sentinel scanner, registry
+  tasks.js       — persistent world-model task helpers
   web.js         — Firecrawl search + scraping, auto-trigger
+  world.js       — persistent local world model
   rag.js         — local vector store (vectra + transformers)
   sentinel.js    — skill security scanner (10 threat categories)
 skills/          — 28 skill markdown files
 web/             — browser chat UI
 benchmark/       — eval suite + MATLAB analysis
+rust-helpers/    — optional Rust helper binaries for indexing, fs watching, sandboxing
 ```
+
+Run validation:
+
+```bash
+npm run benchmark
+npm run benchmark:validate
+npm run benchmark:matlab  # uses MATLAB_BIN or /Applications/MATLAB_R2025b.app/bin/matlab
+```
+
+---
+
+## Development Roadmap
+
+Jarvis is staying Node-first for the main agent loop, with Rust reserved for optional helper binaries where it clearly helps: fast indexing, safer process control, local search, filesystem watching, and future binary packaging. The first Rust helper workspace is in `rust-helpers/`. The detailed personal-agent roadmap lives in [`docs/personal-agent-roadmap.md`](docs/personal-agent-roadmap.md).
 
 ---
 

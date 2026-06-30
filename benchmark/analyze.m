@@ -12,6 +12,12 @@ data = jsondecode(raw);
 
 fprintf('\n=== Jarvis Benchmark Results (%s) ===\n\n', data.timestamp);
 
+if isfield(data, 'life')
+    life_accuracy = data.life.accuracy;
+else
+    life_accuracy = 0;
+end
+
 %% ── Figure layout ─────────────────────────────────────────────────────────────
 fig = figure('Name','Jarvis Benchmark Dashboard', ...
              'Position',[100 100 1400 900], ...
@@ -49,18 +55,19 @@ axis off; title('Jarvis Benchmark', 'Color',fg,'FontSize',14,'FontWeight','bold'
 ax2 = subplot(3,4,[3 4]);
 set(ax2,'Color',bg,'XColor',fg,'YColor',fg,'GridColor',[fg 0.15]); hold on;
 
-components = {'Routing','Skills F1','RAG NDCG@3','Sentinel'};
+components = {'Routing','Skills F1','RAG NDCG@3','Sentinel','Agent','LifeOS'};
 scores     = [ data.routing.accuracy, data.skills.f1, ...
-               data.rag.mean_ndcg,    data.sentinel.accuracy ] * 100;
-colors     = [acc1; acc3; acc4; acc2];
+               data.rag.mean_ndcg,    data.sentinel.accuracy, ...
+               data.agent.accuracy,   life_accuracy ] * 100;
+colors     = [acc1; acc3; acc4; acc2; [0.75 0.45 1.00]; [0.35 0.85 0.75]];
 
-for i = 1:4
+for i = 1:numel(components)
     bar(i, scores(i), 'FaceColor', colors(i,:), 'EdgeColor','none', 'BarWidth',0.6);
     text(i, scores(i)+1.5, sprintf('%.1f%%', scores(i)), ...
          'HorizontalAlignment','center','FontSize',11,'Color',fg,'FontWeight','bold');
 end
 
-set(ax2,'XTick',1:4,'XTickLabel',components,'YLim',[0 110]);
+set(ax2,'XTick',1:numel(components),'XTickLabel',components,'YLim',[0 110]);
 ylabel('Score (%)', 'Color',fg); title('Component Scores','Color',fg,'FontWeight','bold');
 grid on;
 
@@ -175,6 +182,8 @@ lines = {
     sprintf('RAG Hit@3:         %.1f%%', data.rag.hit_at_3*100),
     sprintf('RAG latency:       %.0f ms', data.rag.mean_latency),
     sprintf('Sentinel acc:      %.1f%%', data.sentinel.accuracy*100),
+    sprintf('Agent runtime:     %.1f%%', data.agent.accuracy*100),
+    sprintf('LifeOS layer:      %.1f%%', life_accuracy*100),
     '',
     sprintf('OVERALL:           %.1f%%', data.overall*100),
 };
@@ -202,8 +211,44 @@ fprintf('Routing accuracy   %.1f%%\n', data.routing.accuracy*100);
 fprintf('Skills F1          %.1f%%\n', data.skills.f1*100);
 fprintf('RAG NDCG@3         %.1f%%\n', data.rag.mean_ndcg*100);
 fprintf('Sentinel accuracy  %.1f%%\n', data.sentinel.accuracy*100);
+fprintf('Agent runtime      %.1f%%\n', data.agent.accuracy*100);
+fprintf('LifeOS layer       %.1f%%\n', life_accuracy*100);
 fprintf('─────────────────  ──────\n');
 fprintf('Overall            %.1f%%\n', data.overall*100);
+
+%% ── Validation ───────────────────────────────────────────────────────────────
+validation = struct();
+validation.timestamp = string(datetime('now','TimeZone','local','Format','yyyy-MM-dd''T''HH:mm:ssXXX'));
+validation.passed = data.routing.accuracy >= 0.90 && ...
+                    data.skills.f1 >= 0.70 && ...
+                    data.rag.mean_ndcg >= 0.50 && ...
+                    data.sentinel.accuracy >= 0.80 && ...
+                    data.agent.accuracy >= 1.00 && ...
+                    life_accuracy >= 1.00;
+validation.thresholds = struct( ...
+    'routing_accuracy', 0.90, ...
+    'skills_f1', 0.70, ...
+    'rag_ndcg', 0.50, ...
+    'sentinel_accuracy', 0.80, ...
+    'agent_accuracy', 1.00, ...
+    'life_accuracy', 1.00);
+validation.actual = struct( ...
+    'routing_accuracy', data.routing.accuracy, ...
+    'skills_f1', data.skills.f1, ...
+    'rag_ndcg', data.rag.mean_ndcg, ...
+    'sentinel_accuracy', data.sentinel.accuracy, ...
+    'agent_accuracy', data.agent.accuracy, ...
+    'life_accuracy', life_accuracy, ...
+    'overall', data.overall);
+
+validation_path = fullfile(fileparts(mfilename('fullpath')), 'matlab-validation.json');
+fid = fopen(validation_path, 'w');
+fprintf(fid, '%s', jsonencode(validation, 'PrettyPrint', true));
+fclose(fid);
+
+if ~validation.passed
+    error('Jarvis benchmark validation failed. See benchmark/matlab-validation.json');
+end
 
 %% Helper
 function r = conditional(cond, a, b)

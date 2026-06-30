@@ -1,5 +1,4 @@
-import dotenv from "dotenv";
-dotenv.config();
+import "./env.js";
 
 const FIRECRAWL_KEY = process.env.FIRECRAWL_KEY;
 
